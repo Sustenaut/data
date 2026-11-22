@@ -30,21 +30,11 @@ expected: no participant count, a header or region or technology it does not
 know, the same region and technology twice, more sold than offered, a
 negative number, or a price with nothing sold.
 
-A mistake in EEX's own file that has been looked at can be accepted in the
-stage's options, so it does not block every run until EEX corrects it:
-
-    accepted_issues:
-      - file: 20260121_October_2025_7_GLOBAL_Results_detailedresults.xlsx
-        sha256: 599531eb...      # the file as it was looked at
-        row: 53
-        issue: duplicate_segment
-        note: EEX lists Provence-Alpes-Côte d'Azur Thermique twice ...
-
-An accepted duplicate_segment row is kept with its region unknown, so totals
-stay right, and gets a warning note with the entry's text, for the app to
-show. An entry applies only to the file with that hash: a corrected file is
-parsed as it is. An entry whose issue is no longer in its file fails the
-file, so the list cannot go stale."""
+A mistake in EEX's own file is corrected by a rule in the corrections file
+the stage's options name (see soldera.core.corrections): the rule gives the
+row as EEX published it and what to do, and the parser applies it to the
+rows it read before checking them. A rule that no longer matches fails the
+file, so a corrected file from EEX is noticed."""
 
 from __future__ import annotations
 
@@ -58,6 +48,7 @@ from datetime import date
 from typing import Any
 
 from soldera.canonical import auction_results
+from soldera.core import corrections
 from soldera.core.parser import Artifact, ItemResult, Note, Output, Parser, StageContext, WorkItem
 from soldera.core.registry import register
 
@@ -68,13 +59,26 @@ MONTHS = {name.lower(): index for index, name in enumerate(calendar.month_name) 
 
 REGIONS = {
     "auvergne-rhône-alpes": "FR-ARA", "bourgogne-franche-comté": "FR-BFC", "bretagne": "FR-BRE",
-    "centre-val de loire": "FR-CVL", "corse": "FR-20R", "grand est": "FR-GES",
+    "centre-val de loire": "FR-CVL", "grand est": "FR-GES",
     "hauts-de-france": "FR-HDF", "haut-de-france": "FR-HDF", "île-de-france": "FR-IDF",
     "normandie": "FR-NOR", "nouvelle-aquitaine": "FR-NAQ", "occitanie": "FR-OCC",
     "pays de la loire": "FR-PDL", "provence-alpes-côte d'azur": "FR-PAC",
 }
-TECHNOLOGIES = {"eolien onshore": "wind", "eolien offshore": "wind", "solaire": "solar",
+TECHNOLOGIES = {"eolien onshore": "wind", "solaire": "solar",
                 "hydraulique": "hydro", "thermique": "thermal"}
+
+# The order EEX lists the segments in, region by region, which every file
+# keeps but seven from 2019, and the 48 segments a full auction has.
+REGION_ORDER = ("FR-ARA", "FR-BFC", "FR-BRE", "FR-CVL", "FR-GES", "FR-HDF", "FR-IDF", "FR-NOR", "FR-NAQ",
+                "FR-OCC", "FR-PDL", "FR-PAC")
+TECHNOLOGY_ORDER = ("eolien onshore", "hydraulique", "solaire", "thermique")
+SEGMENTS = tuple((r, t) for r in REGION_ORDER for t in TECHNOLOGY_ORDER)
+REGION_NAMES = {"FR-ARA": "Auvergne-Rhône-Alpes", "FR-BFC": "Bourgogne-Franche-Comté", "FR-BRE": "Bretagne",
+                "FR-CVL": "Centre-Val de Loire", "FR-GES": "Grand Est", "FR-HDF": "Haut-de-France",
+                "FR-IDF": "Île-de-France", "FR-NOR": "Normandie", "FR-NAQ": "Nouvelle-Aquitaine",
+                "FR-OCC": "Occitanie", "FR-PDL": "Pays de la Loire", "FR-PAC": "Provence-Alpes-Côte d'Azur"}
+TECHNOLOGY_NAMES = {"eolien onshore": "Eolien onshore", "hydraulique": "Hydraulique", "solaire": "Solaire",
+                    "thermique": "Thermique"}
 
 # Each column the parser reads, by how its header starts once repaired and lower-cased.
 COLUMNS = {
@@ -162,14 +166,8 @@ def rows_of(name: str, data: bytes) -> tuple[str | None, list[tuple[int, list[An
         workbook.close()
 
 
-ISSUES = ("duplicate_segment",)
-
-
 def parse(name: str, sha256: str, data: bytes, parser: str, version: str,
-          accepted: list[dict[str, Any]] | None = None) -> tuple[list[dict[str, Any]], list[Note]]:
-    accepted_at = {int(a["row"]): a for a in accepted or []}
-    used: set[int] = set()
-    notes: list[Note] = []
+          rules: list[dict[str, Any]] | None = None) -> tuple[list[dict[str, Any]], list[Note]]:
     auction = from_name(name)
     sheet, rows = rows_of(name, data)
     rows = [(i, [clean(c) for c in cells]) for i, cells in rows]
@@ -198,33 +196,41 @@ def parse(name: str, sha256: str, data: bytes, parser: str, version: str,
         raise Unexpected(f"{name}: the header lacks {', '.join(missing)}")
     if participants is None:
         raise Unexpected(f"{name} gives no number of participants")
-    out, seen = [], set()
+
+    # The rows as published, with their numbers read, for the corrections to match.
+    published = []
     for index, cells in rows:
         if index <= header_at or all(c in NOTHING for c in cells):
             continue
         where = f"{name} row {index}"
-        cell = lambda key: cells[columns[key]] if columns[key] < len(cells) else None  # noqa: E731
-        region_label, technology_label = cell("region"), cell("technology")
+        value = {key: cells[at] if at < len(cells) else None for key, at in columns.items()}
+        published.append({
+            "row": index, "region": value["region"], "technology": value["technology"],
+            "volume_offered": number(value["offered"], "the volume offered", where),
+            "volume_sold": number(value["sold"], "the volume sold", where),
+            "price": number(value["price"], "the price", where),
+            "winners": number(value["winners"], "the number of winners", where),
+        })
+    try:
+        corrected, notes = corrections.apply(name, published, rules or [])
+    except corrections.CorrectionError as error:
+        raise Unexpected(str(error)) from error
+
+    out, seen = [], set()
+    for record in corrected:
+        where = f"{name} row {record['row']}"
+        region_label, technology_label = record["region"], record["technology"]
         region = REGIONS.get(str(region_label).lower())
         technology = TECHNOLOGIES.get(str(technology_label).lower())
         if region is None:
             raise Unexpected(f"{where}: unknown region {region_label!r}")
         if technology is None:
             raise Unexpected(f"{where}: unknown technology {technology_label!r}")
-        region_unknown = False
         if (region, str(technology_label).lower()) in seen:
-            issue = accepted_at.get(index)
-            if not issue or issue["issue"] != "duplicate_segment":
-                raise Unexpected(f"{where}: {region_label} {technology_label} appears twice")
-            used.add(index)
-            region, region_unknown = None, True
-            notes.append(Note("accepted_issue", str(issue["note"]), subject=f"{name} row {index}"))
-        else:
-            seen.add((region, str(technology_label).lower()))
-        offered = number(cell("offered"), "the volume offered", where)
-        sold = number(cell("sold"), "the volume sold", where) or 0.0
-        price = number(cell("price"), "the price", where)
-        winners = number(cell("winners"), "the number of winners", where)
+            raise Unexpected(f"{where}: {region_label} {technology_label} appears twice")
+        seen.add((region, str(technology_label).lower()))
+        offered, price, winners = record["volume_offered"], record["price"], record["winners"]
+        sold = record["volume_sold"] or 0.0
         if offered is not None and sold > offered:
             raise Unexpected(f"{where}: {sold:g} MWh sold is more than the {offered:g} MWh offered")
         if price is not None and not sold:
@@ -235,34 +241,69 @@ def parse(name: str, sha256: str, data: bytes, parser: str, version: str,
             "volume_offered_mwh": offered, "volume_allocated_mwh": sold, "price_weighted_avg_eur_mwh": price,
             "price_min_eur_mwh": None, "price_max_eur_mwh": None, "reserve_price_eur_mwh": None,
             "bidders_count": int(participants), "winners_count": int(winners) if winners is not None else None,
-            "extras": json.dumps({"region_label": region_label, "technology_label": technology_label,
-                                  **({"region_unknown": True} if region_unknown else {})},
+            "extras": json.dumps({"region_label": region_label, "technology_label": technology_label},
                                  ensure_ascii=False, sort_keys=True),
-            "source_name": name, "source_sha256": sha256, "source_sheet": sheet, "source_row": index,
+            "source_name": name, "source_sha256": sha256, "source_sheet": sheet, "source_row": record["row"],
             "parser_name": parser, "parser_version": version,
         })
     if not out:
         raise Unexpected(f"{name} has no result rows")
-    stale = sorted(set(accepted_at) - used)
-    if stale:
-        raise Unexpected(f"{name}: the accepted issue at row {', '.join(map(str, stale))} is no longer in the file")
+    notes += check_segments(name, corrected, rules or [])
     return out, notes
 
 
-def accepted_for(artifact: Artifact, options: dict[str, Any]) -> list[dict[str, Any]]:
-    """The accepted issues of this file as it is, checked for shape."""
-    entries = options.get("accepted_issues") or []
-    if not isinstance(entries, list):
-        raise ValueError("options.accepted_issues must be a list")
-    found = []
-    for entry in entries:
-        if not isinstance(entry, dict) or not {"file", "sha256", "row", "issue", "note"} <= set(entry):
-            raise ValueError(f"an accepted issue needs file, sha256, row, issue and note: {entry!r}")
-        if entry["issue"] not in ISSUES:
-            raise ValueError(f"accepted issue {entry['issue']!r} is not one of {', '.join(ISSUES)}")
-        if entry["file"] == artifact.name and entry["sha256"] == artifact.sha256:
-            found.append({k: entry[k] for k in ("row", "issue", "note")})
-    return found
+def check_segments(name: str, rows: list[dict[str, Any]], rules: list[dict[str, Any]]) -> list[Note]:
+    """That the file lists every segment, in EEX's usual order, unless a
+    rule says otherwise; a rule the file no longer needs fails it."""
+    by_kind = {kind: [r for r in rules if r["kind"] == kind] for kind in corrections.KINDS}
+    present = [(REGIONS[str(r["region"]).lower()], str(r["technology"]).lower()) for r in rows]
+    notes: list[Note] = []
+
+    expected = [s for s in SEGMENTS if s in set(present)]
+    in_order = present == expected
+    if by_kind["row_order"]:
+        if in_order:
+            raise Unexpected(f"correction {by_kind['row_order'][0]['id']} is no longer needed: "
+                             f"{name} lists its rows in the usual order")
+        notes += [Note("data_correction", f"{r['problem']} ({r['id']})", subject=name, severity="info")
+                  for r in by_kind["row_order"]]
+    elif not in_order:
+        at = next(i for i, (a, b) in enumerate(zip(present, expected, strict=True)) if a != b)
+        wanted = expected[at]
+        raise Unexpected(f"{name} row {rows[at]['row']}: {rows[at]['region']} {rows[at]['technology']} is out of "
+                         f"EEX's usual order, where {REGION_NAMES[wanted[0]]} {TECHNOLOGY_NAMES[wanted[1]]} belongs")
+
+    noted = {(REGIONS.get(str(r["row"].get("region", "")).lower()), str(r["row"].get("technology", "")).lower())
+             for r in by_kind["missing_row"]}
+    missing = [s for s in SEGMENTS if s not in set(present) and s not in noted]
+    if by_kind["partial_auction"]:
+        if not missing:
+            raise Unexpected(f"correction {by_kind['partial_auction'][0]['id']} is no longer needed: "
+                             f"{name} lists every segment")
+        notes += [Note("data_correction", f"{r['problem']} ({r['id']})", subject=name, severity="info")
+                  for r in by_kind["partial_auction"]]
+    elif missing:
+        shown = ", ".join(f"{REGION_NAMES[r]} {TECHNOLOGY_NAMES[t]}" for r, t in missing[:5])
+        more = f" and {len(missing) - 5} more" if len(missing) > 5 else ""
+        raise Unexpected(f"{name} lacks {len(missing)} of the {len(SEGMENTS)} region and technology segments: "
+                         f"{shown}{more}")
+    return notes
+
+
+def check_rules(rules: list[dict[str, Any]]) -> None:
+    """That each correction names a results file and a region and technology
+    this parser knows, so a typo fails before any file is read."""
+    for rule in rules:
+        if not NAME.match(posixpath.basename(rule["file"])):
+            raise corrections.CorrectionError(f"correction {rule['id']}: {rule['file']} is not named like an EEX results file")
+        fields = {**(rule.get("row") or {}), **(rule.get("set") or {})}
+        unknown = sorted(set(fields) - {"region", "technology", "volume_offered", "volume_sold", "price", "winners"})
+        if unknown:
+            raise corrections.CorrectionError(f"correction {rule['id']}: unknown fields {', '.join(unknown)}")
+        if "region" in fields and str(fields["region"]).lower() not in REGIONS:
+            raise corrections.CorrectionError(f"correction {rule['id']}: unknown region {fields['region']!r}")
+        if "technology" in fields and str(fields["technology"]).lower() not in TECHNOLOGIES:
+            raise corrections.CorrectionError(f"correction {rule['id']}: unknown technology {fields['technology']!r}")
 
 
 @register
@@ -271,14 +312,18 @@ class Results(Parser):
     version = "1.0.0"
 
     def plan(self, upstream: list[Artifact], ctx: StageContext) -> list[WorkItem]:
-        # The accepted issues are parameters, so changing them parses the file again.
+        path = ctx.options.get("corrections")
+        rules = corrections.load(path) if path else []
+        check_rules(rules)
+        # A file's corrections are parameters of its item, so changing them parses it again.
         return [WorkItem(key=a.name, inputs=(a,),
-                         params=(("accepted", json.dumps(accepted_for(a, ctx.options), sort_keys=True)),))
+                         params=(("corrections", json.dumps(corrections.for_file(rules, a.name), sort_keys=True,
+                                                            ensure_ascii=False)),))
                 for a in upstream]
 
     def transform(self, item: WorkItem, ctx: StageContext) -> ItemResult:
         artifact = item.inputs[0]
-        accepted = json.loads(dict(item.params)["accepted"])
-        rows, notes = parse(artifact.name, artifact.sha256, ctx.read(artifact), self.name, self.version, accepted)
+        rules = json.loads(dict(item.params)["corrections"])
+        rows, notes = parse(artifact.name, artifact.sha256, ctx.read(artifact), self.name, self.version, rules)
         return ItemResult([Output("results.parquet", auction_results.write(rows), "application/vnd.apache.parquet",
                                   len(rows))], notes)

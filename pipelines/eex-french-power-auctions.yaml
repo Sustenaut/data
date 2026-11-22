@@ -18,14 +18,5 @@ stages:
   - name: parse
     parser: eex-french-auction@1.0.0
     options:
-      # Mistakes in EEX's own files that have been looked at. Each applies
-      # only to the file with that hash; anything else unexpected fails.
-      accepted_issues:
-        - file: 20260121_October_2025_7_GLOBAL_Results_detailedresults.xlsx
-          sha256: 599531eb73e49cdcce919d118969dfffc5baa6169cfdce39fb5e7c621d1b67e2
-          row: 53
-          issue: duplicate_segment
-          note: >-
-            EEX's October 2025 results list Provence-Alpes-Côte d'Azur Thermique
-            twice (2,975 and 2,959 MWh) and Île-de-France Thermique not at all.
-            The second row is kept with its region unknown.
+      # Mistakes found in EEX's files, and what is done about each.
+      corrections: corrections/eex-french-power-auctions.yaml

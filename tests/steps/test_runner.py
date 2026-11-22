@@ -5,17 +5,16 @@ directory, where `soldera run` keeps its store (store/) and run log
 
 from __future__ import annotations
 
-import hashlib
 import io
 import json
 import zipfile
 import re
 import shlex
+import shutil
 from pathlib import Path
 
 import pyarrow.parquet as pq
 import pytest
-import yaml
 from pubtest.core import dig, same
 from pubtest.plugin import run_program
 from pytest_bdd import given, parsers, scenarios, then
@@ -91,6 +90,7 @@ def listed(ctx, stage: str, name: str) -> dict[str, dict]:
 def repository_pipeline(ctx, name):
     source = REPOSITORY / "pipelines" / f"{name}.yaml"
     (scratch(ctx) / "pipeline.yaml").write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    shutil.copytree(REPOSITORY / "corrections", scratch(ctx) / "corrections")
 
 
 class Raw(str):
@@ -159,19 +159,94 @@ def answers_with_workbook(pubtest_ctx, monkeypatch, name, request, datatable):
     fake(pubtest_ctx, monkeypatch, name).answer(request, 200, Raw(buffer.getvalue()))
 
 
-@given(parsers.parse('the pipeline accepts a "{issue}" at row {row:d} of "{file}" as the "{name}" service serves it, noting "{note}"'))
-def accepts_issue(pubtest_ctx, ctx, issue, row, file, name, note):
-    served = [a for request, answers in pubtest_ctx.fakes[name].answers.items() if request.endswith("/" + file)
-              for a in answers]
-    assert served, f"the {name} service serves no {file}"
-    body = served[-1][1]
-    data = body.encode() if not isinstance(body, Raw) else body.data
-    path = scratch(ctx) / "pipeline.yaml"
-    pipeline = yaml.safe_load(path.read_text(encoding="utf-8"))
-    stage = next(s for s in pipeline["stages"] if s["name"] == "parse")
-    stage.setdefault("options", {})["accepted_issues"] = [
-        {"file": file, "sha256": hashlib.sha256(data).hexdigest(), "row": row, "issue": issue, "note": note}]
-    path.write_text(yaml.safe_dump(pipeline, allow_unicode=True), encoding="utf-8")
+REGION_LABELS = ("Auvergne-Rhône-Alpes", "Bourgogne-Franche-Comté", "Bretagne", "Centre-Val de Loire", "Grand Est",
+                 "Haut-de-France", "Île-de-France", "Normandie", "Nouvelle-Aquitaine", "Occitanie", "Pays de la Loire",
+                 "Provence-Alpes-Côte d'Azur")
+TECHNOLOGY_LABELS = ("Eolien onshore", "Hydraulique", "Solaire", "Thermique")
+
+
+def full_rows(datatable) -> list[list[str]]:
+    """EEX's 48 rows, in its usual order, each 100 MWh offered and sold at
+    0.5 by 1 winner, changed as the table says. A row for a region and
+    technology replaces that one, and "absent" as the volume offered leaves
+    it out. A row with an `after` ("Region / Technology") is an extra row,
+    put after the one named, whatever its own labels."""
+    header, *body = datatable
+    changes = [dict(zip(header, (c.strip() for c in line), strict=True)) for line in body]
+    fields = ("region", "technology", "offered", "sold", "price", "winners")
+    rows = []
+    for region in REGION_LABELS:
+        for technology in TECHNOLOGY_LABELS:
+            row = [region, technology, "100", "100", "0.5", "1"]
+            for change in changes:
+                if not change.get("after") and (change["region"], change["technology"]) == (region, technology):
+                    row = [change[f] for f in fields]
+            if row[2] != "absent":
+                rows.append(row)
+            rows += [[change[f] for f in fields] for change in changes
+                     if change.get("after") == f"{region} / {technology}"]
+    return rows
+
+
+@given(parsers.parse('the "{name}" service answers "{request}" with a full results csv for {participants:d} participants, where:'))
+def answers_with_full_csv(pubtest_ctx, monkeypatch, name, request, participants, datatable):
+    from pubtest.steps.fakes import fake  # noqa: PLC0415
+
+    lines = ["Aggregated Auction Results;;;;;", f"Number of Participants to the Auction;{participants};;;;",
+             "Région / Region;Technologie / Technology;Total Volume Auctionned;Total Volume Sold;"
+             "Weighted Average Price (€ / MWh);Number of winners per couple region/technology"]
+    lines += [";".join(c.replace(".", ",") for c in row) for row in full_rows(datatable)]
+    fake(pubtest_ctx, monkeypatch, name).answer(request, 200, "\n".join(lines) + "\n")
+
+
+@given(parsers.parse('the "{name}" service answers "{request}" with a full results workbook for {participants:d} participants, garbled like EEX\'s, where:'))
+def answers_with_full_workbook(pubtest_ctx, monkeypatch, name, request, participants, datatable):
+    import openpyxl  # noqa: PLC0415
+    from pubtest.steps.fakes import fake  # noqa: PLC0415
+
+    def garble(text: str) -> str:
+        return text.encode("utf-8").decode("cp1252", "replace")
+
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.append(["Aggregated Auction Results"])
+    sheet.append(["Number of Participants to the Auction", participants])
+    sheet.append([garble(h) for h in ("Région / Region", "Technologie / Technology", "Total Volume Auctionned",
+                                      "Total Volume Sold", "Weighted Average Price (€ / MWh)", "My Total Volume",
+                                      "My Weighted Average Price (€ / MWh)",
+                                      "Number of winners per couple region/technology")])
+    for region, technology, offered, sold, price, winners in full_rows(datatable):
+        sheet.append([garble(region), technology, cell(offered), cell(sold), cell(price), "-", "-", cell(winners)])
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    fake(pubtest_ctx, monkeypatch, name).answer(request, 200, Raw(buffer.getvalue()))
+
+
+@then(parsers.parse('the parse stage wrote {count:d} rows'))
+def parsed_count(ctx, count):
+    store = scratch(ctx) / "store"
+    total = sum(pq.read_table(store / o["key"]).num_rows
+                for item in latest_manifest(ctx, "parse")["items"] for o in item["outputs"])
+    assert total == count, f"the parse stage wrote {total} rows"
+
+
+@then(parsers.parse('the parsed rows of "{stage}" include, in order:'))
+def parsed_rows_include(ctx, stage, datatable):
+    store = scratch(ctx) / "store"
+    header, *body = datatable
+    actual = [{k: "" if row[k] is None else str(row[k]) for k in header}
+              for item in latest_manifest(ctx, stage)["items"] for output in item["outputs"]
+              for row in pq.read_table(store / output["key"]).to_pylist()]
+    wanted = [{k: v.strip() for k, v in zip(header, line, strict=True)} for line in body]
+    found = [r for r in actual if r in wanted]
+    assert found == wanted, f"of the rows wanted, these were found: {found}"
+
+
+@given("the corrections file holds:")
+def corrections_file(ctx, docstring):
+    path = scratch(ctx) / "corrections" / "eex-french-power-auctions.yaml"
+    path.parent.mkdir(exist_ok=True)
+    path.write_text(docstring + "\n", encoding="utf-8")
 
 
 @then(parsers.parse('the parsed rows of "{stage}" are:'))
