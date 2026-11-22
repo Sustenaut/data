@@ -1,0 +1,10 @@
+# The functional suite's direct dependencies. Exact pins only; the resolved
+# set with hashes lives in requirements.lock. Regenerate it with `pubrules lock`.
+# The steps and plugin the suite runs with; the nightly moves the pin.
+pubtest @ https://github.com/Sustenaut/pubtest/releases/download/v0.3.0/pubtest-0.3.0-py3-none-any.whl
+-r requirements-pubrules.txt
+# soldera's own dependencies (pyproject.toml), pinned exactly for the suite.
+pyarrow==26.0.1
+pyyaml==6.0.4
+# The suite's coverage, for SonarQube Cloud.
+coverage==7.17.4
