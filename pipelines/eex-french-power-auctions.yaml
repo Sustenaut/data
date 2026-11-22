@@ -3,7 +3,7 @@
 # bumping a version here is how a stage is changed, and `soldera run
 # --from auto` re-runs from the first stage whose pin changed.
 pipeline: eex-french-power-auctions
-plugins: [soldera.parsers.eex]
+plugins: [soldera.parsers.eex, soldera.parsers.auction_results]
 stages:
   - name: discover
     parser: eex-french-auction-page@1.0.0
@@ -20,3 +20,8 @@ stages:
     options:
       # Mistakes found in EEX's files, and what is done about each.
       corrections: corrections/eex-french-power-auctions.yaml
+  - name: merge
+    parser: auction-results-duckdb@1.0.0
+    options:
+      # The file the app at data.sustenaut.eu/power-auctions reads.
+      database: power-auctions.duckdb

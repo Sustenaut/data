@@ -49,10 +49,27 @@ data.sustenaut.eu/power-auctions. Its parsers are in `src/soldera/parsers/eex/`:
 | download | eex-french-auction-download | each file as fetched, and each file inside an archive |
 | select | eex-go-global-results-select | each monthly GO Global Results file, once, by its own name |
 | parse | eex-french-auction | `results.parquet` per file, in the canonical `auction_results` schema (`src/soldera/canonical/`) |
+| merge | auction-results-duckdb | `power-auctions.duckdb`, the database the app reads (below) |
 
 ```sh
 bin/soldera run pipelines/eex-french-power-auctions.yaml
 ```
+
+The merge stage (`src/soldera/parsers/auction_results.py`, for any
+provider's `auction_results`) writes one DuckDB file:
+
+| Name | What it holds |
+| --- | --- |
+| `auction_results` | every row, by auction date |
+| `data_notes` | every note of every stage, copied from each stage's `notes.parquet` |
+| `build_info` | one row: the run, the parser, how many files, rows and auctions, the first and last auction date |
+| `auctions` (view) | one row per auction: volumes, volume-weighted price, bidders, winners |
+| `auction_technologies` (view) | the same per auction and technology |
+
+Two rows for the same auction, region and technology, or one auction from
+two files, fail the run. The merge notes what only the whole series shows:
+auction numbers skipped or used twice, and production months with no
+auction.
 
 ### Data corrections
 
