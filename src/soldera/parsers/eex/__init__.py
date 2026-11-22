@@ -3,4 +3,4 @@
 
 Importing this module registers every EEX parser."""
 
-from soldera.parsers.eex import download, page  # noqa: F401
+from soldera.parsers.eex import download, page, select  # noqa: F401

@@ -13,3 +13,5 @@ stages:
     parser: eex-french-auction-download@1.0.0
     options:
       site: "${EEX_URL:-https://www.eex.com}"
+  - name: select
+    parser: eex-go-global-results-select@1.0.0

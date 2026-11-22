@@ -18,7 +18,7 @@ from pubtest.core import dig, same
 from pubtest.plugin import run_program
 from pytest_bdd import given, parsers, scenarios, then
 
-scenarios("runner.feature", "run_log.feature", "discover.feature", "download.feature")
+scenarios("runner.feature", "run_log.feature", "discover.feature", "download.feature", "select.feature")
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 
