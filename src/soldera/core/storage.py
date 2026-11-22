@@ -1,5 +1,5 @@
 """Where stage outputs live. Keys are relative paths such as
-`02-download/http-download@1.0.0/items/<key>/file.zip`. Every write is atomic:
+`02-download/eex-french-auction-download@1.0.0/objects/ab/ab12…`. Every write is atomic:
 a reader sees the whole object or none of it.
 
 LocalStorage keeps them under a directory; a GCS store with the same methods
@@ -53,6 +53,15 @@ class LocalStorage:
             Path(tmp).unlink(missing_ok=True)
             raise
         return Stored(key, hashlib.sha256(data).hexdigest(), len(data))
+
+    def put_object(self, prefix: str, data: bytes) -> Stored:
+        """Store bytes by their hash under `prefix/objects/`, once: the same
+        content stored again, by any item or run, is the same object."""
+        digest = hashlib.sha256(data).hexdigest()
+        key = f"{prefix}/objects/{digest[:2]}/{digest}"
+        if self.exists(key):
+            return Stored(key, digest, len(data))
+        return self.put_bytes(key, data)
 
     def get_bytes(self, key: str) -> bytes:
         return self._path(key).read_bytes()

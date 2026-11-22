@@ -7,8 +7,9 @@ row when the stage starts and when it ends.
 
 Storage layout, under each stage's prefix (`NN-stage/parser@version`):
 
-    items/<cache key>/<output name>   an item's outputs
-    items/<cache key>/item.json       written last: the item is complete
+    objects/<sha[:2]>/<sha256>        every output, stored once by its content
+    items/<cache key>/item.json       written last: the item is complete, and
+                                      which objects are its outputs, by name
     runs/<run id>/manifest.json       what the stage run did, item by item
     runs/<run id>/notes.parquet       the notes its items carry
     latest.json                       the newest run downstream stages read
@@ -119,15 +120,14 @@ class Runner:
             "requested_from": start or "", "requested_to": end or "",
         }
         print(f"{self.pipeline.name}: run {run_id}, stages {', '.join(s.name for s in stages)}", file=self.out)
-        worst = 0
-        for stage in stages:
+        for position, stage in enumerate(stages):
             outcome = self.run_stage(stage, context, force)
             self.report(outcome)
             if outcome.status == "failed":
+                print(failure_line(self.pipeline.name, run_id, stage, len(self.pipeline.stages), outcome,
+                                   [s.name for s in stages[position + 1:]]), file=self.err)
                 return 1
-            if outcome.status == "partial":
-                worst = 1
-        return worst
+        return 0
 
     def upstream(self, stage: Stage) -> tuple[list[Artifact], dict[str, Any] | None]:
         if stage.index == 1:
@@ -175,7 +175,9 @@ class Runner:
             return outcome
         done = [self.run_item(stage, parser, ctx, item, run_id, force) for item in items]
         failed = sum(1 for d in done if d["status"] == "failed")
-        status = "failed" if done and failed == len(done) else "partial" if failed else "succeeded"
+        # Any failed item fails the stage: it runs in a batch job, where a
+        # stage that published part of its data would go unnoticed.
+        status = "failed" if failed else "succeeded"
         manifest_key = f"{stage.prefix}/runs/{run_id}/manifest.json"
         notes_key = f"{stage.prefix}/runs/{run_id}/notes.parquet"
         stage_notes = [n for d in done for n in d.get("notes", [])]
@@ -214,8 +216,11 @@ class Runner:
                 if not isinstance(result, ItemResult):
                     raise TypeError(f"{stage.parser.ref()} returned {type(result).__name__}, not ItemResult")
                 outputs, rows = [], 0
+                names = [o.name for o in result.outputs]
+                if len(set(names)) != len(names):
+                    raise ValueError(f"{item.key} has two outputs with the same name")
                 for output in result.outputs:
-                    stored = self.storage.put_bytes(f"{base}/{output.name}", output.data)
+                    stored = self.storage.put_object(stage.prefix, output.data)
                     outputs.append(Artifact(stored.key, stored.sha256, stored.size, output.name,
                                             output.media_type, item.key).to_dict())
                     rows += output.rows or 0
@@ -250,6 +255,22 @@ class Runner:
             if item["status"] == "failed":
                 print(f"{stage.name}: {item['item_key']} failed: {item['error_class']}: {item['error_message']}",
                       file=self.err)
+
+
+def failure_line(pipeline: str, run_id: str, stage: Stage, stage_count: int, outcome: StageOutcome,
+                 skipped: list[str]) -> str:
+    """One line that says, on its own, what failed, what did not run, what
+    is still published, and where to look next."""
+    failed = [i["item_key"] for i in outcome.items if i["status"] == "failed"]
+    if failed:
+        shown = ", ".join(failed[:5]) + (f" and {len(failed) - 5} more" if len(failed) > 5 else "")
+        why = f"{len(failed)} of {len(outcome.items)} items failed: {shown}"
+    else:
+        why = f"it could not start: {outcome.error}"
+    not_run = f" Not run: {', '.join(skipped)}." if skipped else ""
+    return (f"ingest run {run_id} failed: pipeline {pipeline} stopped at stage {stage.index} of {stage_count}, "
+            f"{stage.name} ({stage.parser.ref()}): {why}.{not_run} Nothing this stage built was published; "
+            f"the last good output stays in place. Each error is in the run log under run {run_id}.")
 
 
 def cache_key(stage: Stage, item: WorkItem, run_id: str) -> str:

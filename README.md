@@ -21,7 +21,7 @@ bin/soldera run PIPELINE.yaml --force         # build every item again
 
 Outputs go to `store/` (`--store`, `SOLDERA_STORE`) and run log rows to
 `runs.jsonl` (`--run-log`, `SOLDERA_RUN_LOG`). `soldera run` exits 0 when every
-stage succeeded, 1 when a stage failed or some of its items did, and 2 when
+stage succeeded, 1 when a stage failed (any of its items failing fails it), and 2 when
 the run could not start as asked.
 
 A pipeline file pins each stage's parser:
@@ -46,6 +46,7 @@ data.sustenaut.eu/power-auctions. Its parsers are in `src/soldera/parsers/eex/`:
 | Stage | Parser | What it stores |
 | --- | --- | --- |
 | discover | eex-french-auction-page | the page, and `files.json`: every file it links to, with its section, title and publishing date |
+| download | eex-french-auction-download | each file as fetched, and each file inside an archive |
 
 ```sh
 bin/soldera run pipelines/eex-french-power-auctions.yaml
@@ -58,8 +59,11 @@ for the stage's work items (`plan`), runs each one (`transform`), and:
 
 - **skips an item whose output is stored**: the cache key is the parser's name
   and version, the input files' hashes and the item's parameters;
-- **keeps going when an item fails**: the stage is then `partial`, and the
-  next stage reads the items that succeeded;
+- **fails loudly when an item fails**: the other items still run, so one run
+  reports every failure, but the stage then fails, publishes nothing, and the
+  run stops with exit 1. The stages after it keep reading the last good run;
+- **stores each output once, by its content**, under `objects/`, so an
+  unchanged file fetched again costs nothing;
 - **writes the stage's manifest and notes** under
   `NN-stage/parser@version/runs/<run id>/`, and `latest.json`, which the next
   stage reads;
