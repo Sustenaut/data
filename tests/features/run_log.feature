@@ -20,6 +20,8 @@ Feature: The run log and the notes
       """
 
   Scenario: Each stage logs a running row and a final row
+    Given the environment sets "GITHUB_ACTIONS" to "false"
+    And the environment sets "CLOUD_RUN_JOB" to ""
     When I run "soldera run pipeline.yaml --run-id r1"
     Then it succeeds
     And the run log has the rows:
