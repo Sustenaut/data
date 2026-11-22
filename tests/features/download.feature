@@ -106,3 +106,14 @@ Feature: Stage 2, download: every file the page links to
     When I run "soldera run pipeline.yaml"
     Then the exit code is 1
     And stderr mentions "download: results.zip failed: ValueError: results.zip is not a readable zip archive"
+
+  Scenario: A damaged file inside an archive fails the archive's item, naming the file
+    Given the "eex" service answers "GET /en/markets/energy-certificates/french-auctions-power" with 200 and:
+      """
+      <h2>Guarantees of Origin Data</h2>
+      <a href="/fileadmin/GO/results.zip">zip</a>
+      """
+    And the "eex" service answers "GET /fileadmin/GO/results.zip" with a zip whose "2021/march.xlsx" is corrupt
+    When I run "soldera run pipeline.yaml"
+    Then the exit code is 1
+    And stderr mentions "download: results.zip failed: ValueError: results.zip: cannot read 2021/march.xlsx: Bad CRC-32"

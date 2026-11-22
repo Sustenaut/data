@@ -22,6 +22,7 @@ import json
 import mimetypes
 import posixpath
 import zipfile
+import zlib
 
 from soldera.core import http
 from soldera.core.parser import Artifact, ItemResult, Note, Output, Parser, StageContext, WorkItem
@@ -60,7 +61,10 @@ def unpack(name: str, data: bytes) -> tuple[list[Output], list[Note]]:
             notes.append(Note("archive_member_skipped", f"{name}: {path} is an operating system file, left out",
                               subject=f"{name}/{path}", severity="info"))
             continue
-        content = archive.read(member)
+        try:
+            content = archive.read(member)
+        except (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError, RuntimeError) as error:
+            raise ValueError(f"{name}: cannot read {path}: {error}") from error
         total += len(content)
         if total > MAX_UNPACKED:
             raise ValueError(f"{name} unpacks to more than {MAX_UNPACKED // (1024 * 1024)} MB")

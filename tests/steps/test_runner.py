@@ -115,6 +115,18 @@ def answers_with_zip(pubtest_ctx, monkeypatch, name, request, datatable):
     fake(pubtest_ctx, monkeypatch, name).answer(request, 200, Raw(buffer.getvalue()))
 
 
+@given(parsers.parse('the "{name}" service answers "{request}" with a zip whose "{path}" is corrupt'))
+def answers_with_corrupt_zip(pubtest_ctx, monkeypatch, name, request, path):
+    from pubtest.steps.fakes import fake  # noqa: PLC0415
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_STORED) as archive:
+        archive.writestr("fine.csv", "fine")
+        archive.writestr(path, "the original content")
+    data = buffer.getvalue().replace(b"the original content", b"the altered! content")
+    fake(pubtest_ctx, monkeypatch, name).answer(request, 200, Raw(data))
+
+
 def latest_manifest(ctx, stage: str) -> dict:
     latest = list(stage_dir(ctx, stage).glob("*/latest.json"))
     assert len(latest) == 1, f"{stage} has {len(latest)} published parser versions"
