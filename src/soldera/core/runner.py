@@ -120,15 +120,18 @@ class Runner:
             "requested_from": start or "", "requested_to": end or "",
         }
         print(f"{self.pipeline.name}: run {run_id}, stages {', '.join(s.name for s in stages)}", file=self.out)
-        worst = 0
-        for stage in stages:
+        for position, stage in enumerate(stages):
             outcome = self.run_stage(stage, context, force)
             self.report(outcome)
             if outcome.status == "failed":
+                skipped = [s.name for s in stages[position + 1:]]
+                failed = outcome.count("failed")
+                why = f"{failed} of {len(outcome.items)} items failed" if failed else "it could not start"
+                after = f"; {', '.join(skipped)} did not run" if skipped else ""
+                print(f"soldera: run {run_id} failed at {stage.name}: {why}{after}. "
+                      f"Nothing it built was published.", file=self.err)
                 return 1
-            if outcome.status == "partial":
-                worst = 1
-        return worst
+        return 0
 
     def upstream(self, stage: Stage) -> tuple[list[Artifact], dict[str, Any] | None]:
         if stage.index == 1:
@@ -176,7 +179,9 @@ class Runner:
             return outcome
         done = [self.run_item(stage, parser, ctx, item, run_id, force) for item in items]
         failed = sum(1 for d in done if d["status"] == "failed")
-        status = "failed" if done and failed == len(done) else "partial" if failed else "succeeded"
+        # Any failed item fails the stage: it runs in a batch job, where a
+        # stage that published part of its data would go unnoticed.
+        status = "failed" if failed else "succeeded"
         manifest_key = f"{stage.prefix}/runs/{run_id}/manifest.json"
         notes_key = f"{stage.prefix}/runs/{run_id}/notes.parquet"
         stage_notes = [n for d in done for n in d.get("notes", [])]

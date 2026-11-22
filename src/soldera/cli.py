@@ -7,7 +7,7 @@
 input changed, and runs nothing when every stage is up to date. Without
 `--from`, the run starts at the first stage.
 
-Exit codes: 0 every stage succeeded, 1 a stage failed or some items did, 2 the
+Exit codes: 0 every stage succeeded, 1 a stage failed (one failed item fails it), 2 the
 run could not start as asked."""
 
 from __future__ import annotations

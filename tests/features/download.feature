@@ -61,7 +61,7 @@ Feature: Stage 2, download: every file the page links to
     And the "eex" service was asked "GET /fileadmin/GO/results.zip" 2 times
     And the stage "download" stores 4 objects
 
-  Scenario: A file that cannot be fetched fails its own item only
+  Scenario: A file that cannot be fetched fails the stage, after the other files are fetched
     Given the "eex" service answers "GET /en/markets/energy-certificates/french-auctions-power" with 200 and:
       """
       <h2>Guarantees of Origin Data</h2>
@@ -74,7 +74,7 @@ Feature: Stage 2, download: every file the page links to
       | february.csv | february |
     When I run "soldera run pipeline.yaml"
     Then the exit code is 1
-    And it prints "download: eex-french-auction-download@1.0.0 partial: 2 items, 1 built, 0 cached, 1 failed"
+    And it prints "download: eex-french-auction-download@1.0.0 failed: 2 items, 1 built, 0 cached, 1 failed"
     And stderr mentions "download: latest.xlsx failed: HttpError: GET"
     And stderr mentions "answered 404"
 
