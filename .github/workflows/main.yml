@@ -14,7 +14,7 @@ jobs:
   tested:
     name: ci
     uses: Sustenaut/pubrules/.github/workflows/job-tested.yml@cc8eaf673afb86eb78fa9808e5028ae7f6fa187c # v0.48.0
-    with: {"workflow": ".github/workflows/pr.yml"}
+    with: {"workflow": ".github/workflows/pr.yml", "runs-on": "sustenaut-ci"}
     permissions:
       actions: read
       contents: read
@@ -24,14 +24,14 @@ jobs:
     needs: [tested]
     if: ${{ needs.tested.outputs.tested != 'true' }}
     uses: Sustenaut/pubrules/.github/workflows/job-service-checks.yml@cc8eaf673afb86eb78fa9808e5028ae7f6fa187c # v0.48.0
-    with: {"shellcheck": "bin/soldera"}
+    with: {"shellcheck": "bin/soldera", "runs-on": "sustenaut-ci"}
 
   tests:
     name: ci
     needs: [tested]
     if: ${{ needs.tested.outputs.tested != 'true' }}
     uses: Sustenaut/pubrules/.github/workflows/job-service-tests.yml@cc8eaf673afb86eb78fa9808e5028ae7f6fa187c # v0.48.0
-    with: {"setup": "make venv", "test": "make functional"}
+    with: {"setup": "make venv", "test": "make functional", "runs-on": "sustenaut-ci"}
 
   sonar:
     name: ci
@@ -41,7 +41,7 @@ jobs:
     permissions:
       actions: read
       contents: read
-    with: {"reports": "sonar.python.coverage.reportPaths=*.xml sonar.javascript.lcov.reportPaths=lcov.info", "coverage-run": "${{ needs.tested.outputs.run-id }}"}
+    with: {"reports": "sonar.python.coverage.reportPaths=*.xml sonar.javascript.lcov.reportPaths=lcov.info", "runs-on": "sustenaut-ci", "coverage-run": "${{ needs.tested.outputs.run-id }}"}
     secrets: { SONAR_TOKEN: '${{ secrets.SONAR_TOKEN }}' }
 
   # The one check a ruleset requires: it passes only when every job
@@ -51,7 +51,7 @@ jobs:
     name: ci / passed
     if: always()
     needs: [tested, checks, tests, sonar]
-    runs-on: ubuntu-latest
+    runs-on: sustenaut-ci
     steps:
       - run: |
           echo "$RESULTS"
