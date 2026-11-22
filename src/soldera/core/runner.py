@@ -124,12 +124,8 @@ class Runner:
             outcome = self.run_stage(stage, context, force)
             self.report(outcome)
             if outcome.status == "failed":
-                skipped = [s.name for s in stages[position + 1:]]
-                failed = outcome.count("failed")
-                why = f"{failed} of {len(outcome.items)} items failed" if failed else "it could not start"
-                after = f"; {', '.join(skipped)} did not run" if skipped else ""
-                print(f"soldera: run {run_id} failed at {stage.name}: {why}{after}. "
-                      f"Nothing it built was published.", file=self.err)
+                print(failure_line(self.pipeline.name, run_id, stage, len(self.pipeline.stages), outcome,
+                                   [s.name for s in stages[position + 1:]]), file=self.err)
                 return 1
         return 0
 
@@ -259,6 +255,22 @@ class Runner:
             if item["status"] == "failed":
                 print(f"{stage.name}: {item['item_key']} failed: {item['error_class']}: {item['error_message']}",
                       file=self.err)
+
+
+def failure_line(pipeline: str, run_id: str, stage: Stage, stage_count: int, outcome: StageOutcome,
+                 skipped: list[str]) -> str:
+    """One line that says, on its own, what failed, what did not run, what
+    is still published, and where to look next."""
+    failed = [i["item_key"] for i in outcome.items if i["status"] == "failed"]
+    if failed:
+        shown = ", ".join(failed[:5]) + (f" and {len(failed) - 5} more" if len(failed) > 5 else "")
+        why = f"{len(failed)} of {len(outcome.items)} items failed: {shown}"
+    else:
+        why = f"it could not start: {outcome.error}"
+    not_run = f" Not run: {', '.join(skipped)}." if skipped else ""
+    return (f"ingest run {run_id} failed: pipeline {pipeline} stopped at stage {stage.index} of {stage_count}, "
+            f"{stage.name} ({stage.parser.ref()}): {why}.{not_run} Nothing this stage built was published; "
+            f"the last good output stays in place. Each error is in the run log under run {run_id}.")
 
 
 def cache_key(stage: Stage, item: WorkItem, run_id: str) -> str:

@@ -53,7 +53,7 @@ Feature: Running a pipeline's stages
     Then the exit code is 1
     And it prints "upper: testing-upper@1.0.0 failed: 3 items, 0 built, 2 cached, 1 failed"
     And stderr mentions "upper: c.txt failed: ValueError: c.txt asks to fail"
-    And stderr mentions "soldera: run r2 failed at upper: 1 of 3 items failed; join did not run. Nothing it built was published."
+    And stderr mentions "ingest run r2 failed: pipeline demo stopped at stage 2 of 3, upper (testing-upper@1.0.0): 1 of 3 items failed: c.txt. Not run: join. Nothing this stage built was published; the last good output stays in place. Each error is in the run log under run r2."
     And the published output of "join" holds:
       """
       ALPHA
@@ -146,3 +146,17 @@ Feature: Running a pipeline's stages
     When I run "soldera run vars.yaml"
     Then the exit code is 2
     And stderr mentions "DEMO_DIR_UNSET is not set and has no default"
+
+  Scenario: A stage that cannot plan its work fails the run, saying why
+    Given a file "nodir.yaml" holding:
+      """
+      pipeline: demo
+      plugins: [soldera.testing]
+      stages:
+        - {name: fetch, parser: testing-files@1.0.0, options: {dir: nowhere}}
+        - {name: upper, parser: testing-upper@1.0.0}
+      """
+    When I run "soldera run nodir.yaml --run-id r1"
+    Then the exit code is 1
+    And stderr mentions "ingest run r1 failed: pipeline demo stopped at stage 1 of 2, fetch (testing-files@1.0.0): it could not start: FileNotFoundError"
+    And stderr mentions "Not run: upper."
