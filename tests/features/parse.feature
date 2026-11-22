@@ -335,6 +335,16 @@ Feature: Stage 4, parse: each results file into canonical auction rows
     Then it succeeds
     And it prints "0 problems"
 
+  Scenario Outline: A corrections file must be a YAML file inside the working directory
+    When I run "soldera corrections check <path>"
+    Then the exit code is 2
+    And stderr mentions "<problem>"
+
+    Examples:
+      | path                  | problem                                                     |
+      | ../elsewhere.yaml     | a corrections file must be inside the working directory     |
+      | pipeline.yaml.txt     | pipeline.yaml.txt is not a .yaml file                       |
+
   Scenario: A rule that does not match its own excerpt fails the check
     Given the corrections file holds:
       """

@@ -63,9 +63,16 @@ class CorrectionError(ValueError):
 
 
 def load(path: str | Path) -> list[dict[str, Any]]:
-    """The rules of a corrections file, checked for shape."""
+    """The rules of a corrections file, checked for shape. Like a pipeline,
+    it is a reviewed YAML file of the repository, under the working directory."""
+    base = Path.cwd().resolve()
+    resolved = (base / path).resolve()
+    if not resolved.is_relative_to(base):
+        raise CorrectionError(f"{path} is outside {base}; a corrections file must be inside the working directory")
+    if resolved.suffix not in (".yaml", ".yml"):
+        raise CorrectionError(f"{path} is not a .yaml file")
     try:
-        data = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+        data = yaml.safe_load(resolved.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError) as error:
         raise CorrectionError(f"cannot read the corrections file {path}: {error}") from error
     rules = data.get("corrections") if isinstance(data, dict) else None
