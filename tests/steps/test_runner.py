@@ -16,7 +16,9 @@ from pubtest.core import dig, same
 from pubtest.plugin import run_program
 from pytest_bdd import given, parsers, scenarios, then
 
-scenarios("runner.feature", "run_log.feature")
+scenarios("runner.feature", "run_log.feature", "discover.feature")
+
+REPOSITORY = Path(__file__).resolve().parents[2]
 
 
 def scratch(ctx) -> Path:
@@ -64,6 +66,53 @@ def now_pins(ctx, path, pin):
     text, count = re.subn(rf"{re.escape(name)}@[0-9A-Za-z.\-]+", pin, file.read_text(encoding="utf-8"))
     assert count == 1, f"{path} pins {name} {count} times"
     file.write_text(text, encoding="utf-8")
+
+
+def published(ctx, stage: str, name: str) -> bytes:
+    """An output of the stage's published run, by its name."""
+    latest = list(stage_dir(ctx, stage).glob("*/latest.json"))
+    assert len(latest) == 1, f"{stage} has {len(latest)} published parser versions"
+    store = scratch(ctx) / "store"
+    manifest = json.loads((store / json.loads(latest[0].read_text())["manifest"]).read_text())
+    found = [o for item in manifest["items"] if item["status"] != "failed" for o in item["outputs"] if o["name"] == name]
+    assert len(found) == 1, f"{stage} published {len(found)} outputs named {name}"
+    return (store / found[0]["key"]).read_bytes()
+
+
+def listed(ctx, stage: str, name: str) -> dict[str, dict]:
+    return {entry["name"]: entry for entry in json.loads(published(ctx, stage, name))}
+
+
+@given(parsers.parse('the repository\'s pipeline "{name}"'))
+def repository_pipeline(ctx, name):
+    source = REPOSITORY / "pipelines" / f"{name}.yaml"
+    (scratch(ctx) / "pipeline.yaml").write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+
+
+@then(parsers.parse('the published "{name}" of "{stage}" lists:'))
+def published_lists(ctx, name, stage, datatable):
+    header, *body = datatable
+    actual = [{k: str(entry[k]) for k in header} for entry in json.loads(published(ctx, stage, name))]
+    wanted = [{k: v.strip() for k, v in zip(header, line, strict=True)} for line in body]
+    assert actual == wanted, f"{name} lists {actual}"
+
+
+@then(parsers.parse('the published "{name}" of "{stage}" gives "{entry}" the url "{url}"'))
+def published_url(ctx, name, stage, entry, url):
+    actual = listed(ctx, stage, name)[entry]["url"]
+    assert actual == url, f"{entry}'s url is {actual}"
+
+
+@then(parsers.parse('the published "{name}" of "{stage}" gives "{entry}" a url on the "{service}" service ending "{path}"'))
+def published_url_on(ctx, name, stage, entry, service, path):
+    actual = listed(ctx, stage, name)[entry]["url"]
+    wanted = ctx.fakes[service].url + path
+    assert actual == wanted, f"{entry}'s url is {actual}, not {wanted}"
+
+
+@then(parsers.parse('the published "{name}" of "{stage}" includes "{text}"'))
+def published_includes(ctx, name, stage, text):
+    assert text in published(ctx, stage, name).decode("utf-8"), f"{name} does not include {text}"
 
 
 @then(parsers.parse('the published output of "{stage}" holds:'))

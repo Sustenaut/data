@@ -8,10 +8,16 @@
         options: {url: https://...}
 
 The pins are the only place a parser version is chosen: bumping one is a
-reviewed change to this file."""
+reviewed change to this file.
+
+An option may name an environment variable, `${NAME}` or `${NAME:-default}`,
+so a test can point a stage at a fake service:
+
+    options: {url: "${EEX_URL:-https://www.eex.com}/en/markets/..."}"""
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -23,6 +29,7 @@ from soldera.core import registry
 from soldera.core.parser import Parser
 
 NAME = re.compile(r"^[a-z][a-z0-9-]*$")
+VARIABLE = re.compile(r"\$\{([A-Z][A-Z0-9_]*)(?::-([^}]*))?\}")
 
 
 class PipelineError(ValueError):
@@ -56,6 +63,26 @@ class Pipeline:
 
     def names(self) -> list[str]:
         return [s.name for s in self.stages]
+
+
+def expand(value: Any, where: str) -> Any:
+    """An option with every `${NAME}` and `${NAME:-default}` replaced."""
+    if isinstance(value, dict):
+        return {k: expand(v, where) for k, v in value.items()}
+    if isinstance(value, list):
+        return [expand(v, where) for v in value]
+    if not isinstance(value, str):
+        return value
+
+    def variable(match: re.Match[str]) -> str:
+        name, default = match.group(1), match.group(2)
+        if name in os.environ:
+            return os.environ[name]
+        if default is None:
+            raise PipelineError(f"{where}: {name} is not set and has no default")
+        return default
+
+    return VARIABLE.sub(variable, value)
 
 
 def inside(path: str | Path, root: Path | None = None) -> Path:
@@ -110,5 +137,5 @@ def load(path: str | Path) -> Pipeline:
         options = entry.get("options") or {}
         if not isinstance(options, dict):
             raise PipelineError(f"{path}: stage {stage_name}: options must be a mapping")
-        stages.append(Stage(index, stage_name, parser, options))
+        stages.append(Stage(index, stage_name, parser, expand(options, f"{path}: stage {stage_name}")))
     return Pipeline(name, tuple(stages), data)
