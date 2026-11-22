@@ -1,0 +1,16 @@
+{
+  "kind": "service",
+  "bin": "soldera",
+  "ci": {
+    "events": [
+      "pr",
+      "main"
+    ],
+    "runs-on": "sustenaut-ci",
+    "with": {
+      "setup": "make venv",
+      "test": "make functional",
+      "shellcheck": "bin/soldera"
+    }
+  }
+}
