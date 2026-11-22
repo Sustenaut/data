@@ -5,7 +5,9 @@ directory, where `soldera run` keeps its store (store/) and run log
 
 from __future__ import annotations
 
+import io
 import json
+import zipfile
 import re
 import shlex
 from pathlib import Path
@@ -16,7 +18,7 @@ from pubtest.core import dig, same
 from pubtest.plugin import run_program
 from pytest_bdd import given, parsers, scenarios, then
 
-scenarios("runner.feature", "run_log.feature", "discover.feature")
+scenarios("runner.feature", "run_log.feature", "discover.feature", "download.feature")
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 
@@ -87,6 +89,62 @@ def listed(ctx, stage: str, name: str) -> dict[str, dict]:
 def repository_pipeline(ctx, name):
     source = REPOSITORY / "pipelines" / f"{name}.yaml"
     (scratch(ctx) / "pipeline.yaml").write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+
+
+class Raw(str):
+    """A fake service's answer body that is bytes, not text: pubtest's fake
+    encodes the body it is given, and this one encodes to itself."""
+
+    def __new__(cls, data: bytes):
+        made = super().__new__(cls, "")
+        made.data = data
+        return made
+
+    def encode(self, *args, **kwargs) -> bytes:  # noqa: ARG002 - the bytes are already made
+        return self.data
+
+
+@given(parsers.parse('the "{name}" service answers "{request}" with a zip holding:'))
+def answers_with_zip(pubtest_ctx, monkeypatch, name, request, datatable):
+    from pubtest.steps.fakes import fake  # noqa: PLC0415
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for path, content in datatable[1:]:
+            archive.writestr(path.strip(), content.strip())
+    fake(pubtest_ctx, monkeypatch, name).answer(request, 200, Raw(buffer.getvalue()))
+
+
+def latest_manifest(ctx, stage: str) -> dict:
+    latest = list(stage_dir(ctx, stage).glob("*/latest.json"))
+    assert len(latest) == 1, f"{stage} has {len(latest)} published parser versions"
+    store = scratch(ctx) / "store"
+    return json.loads((store / json.loads(latest[0].read_text())["manifest"]).read_text())
+
+
+@then(parsers.parse('the published outputs of "{stage}" are:'))
+def published_outputs(ctx, stage, datatable):
+    store = scratch(ctx) / "store"
+    actual = []
+    for item in latest_manifest(ctx, stage)["items"]:
+        for output in item["outputs"]:
+            data = (store / output["key"]).read_bytes()
+            holds = "" if output["name"].endswith(".zip") else data.decode("utf-8", "replace").strip()
+            actual.append({"item": item["item_key"], "name": output["name"], "holds": holds})
+    wanted = [{"item": a.strip(), "name": b.strip(), "holds": c.strip()} for a, b, c in datatable[1:]]
+    assert sorted(actual, key=str) == sorted(wanted, key=str), f"the outputs are {actual}"
+
+
+@then(parsers.parse('the notes of "{stage}" in the latest run are:'))
+def latest_notes_are(ctx, stage, datatable):
+    run_id = latest_manifest(ctx, stage)["run_id"]
+    notes_are(ctx, stage, run_id, datatable)
+
+
+@then(parsers.parse('the stage "{stage}" stores {count:d} objects'))
+def stores_objects(ctx, stage, count):
+    found = [p for p in stage_dir(ctx, stage).glob("*/objects/*/*") if p.is_file()]
+    assert len(found) == count, f"{stage} stores {len(found)} objects"
 
 
 @then(parsers.parse('the published "{name}" of "{stage}" lists:'))

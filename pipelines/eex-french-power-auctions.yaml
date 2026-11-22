@@ -9,3 +9,7 @@ stages:
     parser: eex-french-auction-page@1.0.0
     options:
       url: "${EEX_URL:-https://www.eex.com}/en/markets/energy-certificates/french-auctions-power"
+  - name: download
+    parser: eex-french-auction-download@1.0.0
+    options:
+      site: "${EEX_URL:-https://www.eex.com}"

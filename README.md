@@ -46,6 +46,7 @@ data.sustenaut.eu/power-auctions. Its parsers are in `src/soldera/parsers/eex/`:
 | Stage | Parser | What it stores |
 | --- | --- | --- |
 | discover | eex-french-auction-page | the page, and `files.json`: every file it links to, with its section, title and publishing date |
+| download | eex-french-auction-download | each file as fetched, and each file inside an archive |
 
 ```sh
 bin/soldera run pipelines/eex-french-power-auctions.yaml
@@ -60,6 +61,8 @@ for the stage's work items (`plan`), runs each one (`transform`), and:
   and version, the input files' hashes and the item's parameters;
 - **keeps going when an item fails**: the stage is then `partial`, and the
   next stage reads the items that succeeded;
+- **stores each output once, by its content**, under `objects/`, so an
+  unchanged file fetched again costs nothing;
 - **writes the stage's manifest and notes** under
   `NN-stage/parser@version/runs/<run id>/`, and `latest.json`, which the next
   stage reads;

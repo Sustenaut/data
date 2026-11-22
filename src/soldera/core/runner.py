@@ -7,8 +7,9 @@ row when the stage starts and when it ends.
 
 Storage layout, under each stage's prefix (`NN-stage/parser@version`):
 
-    items/<cache key>/<output name>   an item's outputs
-    items/<cache key>/item.json       written last: the item is complete
+    objects/<sha[:2]>/<sha256>        every output, stored once by its content
+    items/<cache key>/item.json       written last: the item is complete, and
+                                      which objects are its outputs, by name
     runs/<run id>/manifest.json       what the stage run did, item by item
     runs/<run id>/notes.parquet       the notes its items carry
     latest.json                       the newest run downstream stages read
@@ -214,8 +215,11 @@ class Runner:
                 if not isinstance(result, ItemResult):
                     raise TypeError(f"{stage.parser.ref()} returned {type(result).__name__}, not ItemResult")
                 outputs, rows = [], 0
+                names = [o.name for o in result.outputs]
+                if len(set(names)) != len(names):
+                    raise ValueError(f"{item.key} has two outputs with the same name")
                 for output in result.outputs:
-                    stored = self.storage.put_bytes(f"{base}/{output.name}", output.data)
+                    stored = self.storage.put_object(stage.prefix, output.data)
                     outputs.append(Artifact(stored.key, stored.sha256, stored.size, output.name,
                                             output.media_type, item.key).to_dict())
                     rows += output.rows or 0
