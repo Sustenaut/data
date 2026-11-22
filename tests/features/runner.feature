@@ -120,3 +120,27 @@ Feature: Running a pipeline's stages
     When I run "soldera run missing.yaml"
     Then the exit code is 2
     And stderr mentions "cannot read missing.yaml"
+
+  Scenario: An option may name an environment variable, with a default
+    Given a file "vars.yaml" holding:
+      """
+      pipeline: demo
+      plugins: [soldera.testing]
+      stages:
+        - {name: fetch, parser: testing-files@1.0.0, options: {dir: "${DEMO_DIR:-missing}"}}
+      """
+    And the environment sets "DEMO_DIR" to "src"
+    When I run "soldera run vars.yaml"
+    Then it prints "fetch: testing-files@1.0.0 succeeded: 2 items, 2 built, 0 cached, 0 failed"
+
+  Scenario: An option naming an unset variable with no default is refused
+    Given a file "vars.yaml" holding:
+      """
+      pipeline: demo
+      plugins: [soldera.testing]
+      stages:
+        - {name: fetch, parser: testing-files@1.0.0, options: {dir: "${DEMO_DIR_UNSET}"}}
+      """
+    When I run "soldera run vars.yaml"
+    Then the exit code is 2
+    And stderr mentions "DEMO_DIR_UNSET is not set and has no default"

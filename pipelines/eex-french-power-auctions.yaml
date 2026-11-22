@@ -1,0 +1,11 @@
+# The French auctions of power guarantees of origin, from EEX, into one
+# DuckDB for data.sustenaut.eu/power-auctions. Each stage pins its parser:
+# bumping a version here is how a stage is changed, and `soldera run
+# --from auto` re-runs from the first stage whose pin changed.
+pipeline: eex-french-power-auctions
+plugins: [soldera.parsers.eex]
+stages:
+  - name: discover
+    parser: eex-french-auction-page@1.0.0
+    options:
+      url: "${EEX_URL:-https://www.eex.com}/en/markets/energy-certificates/french-auctions-power"

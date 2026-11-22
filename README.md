@@ -35,6 +35,22 @@ stages:
   - {name: join, parser: testing-join@1.0.0}
 ```
 
+An option may name an environment variable, `${NAME}` or
+`${NAME:-default}`; the suite uses that to point a stage at a fake service.
+
+## The EEX pipeline
+
+`pipelines/eex-french-power-auctions.yaml` is the pipeline for
+data.sustenaut.eu/power-auctions. Its parsers are in `src/soldera/parsers/eex/`:
+
+| Stage | Parser | What it stores |
+| --- | --- | --- |
+| discover | eex-french-auction-page | the page, and `files.json`: every file it links to, with its section, title and publishing date |
+
+```sh
+bin/soldera run pipelines/eex-french-power-auctions.yaml
+```
+
 ## How a stage runs
 
 `src/soldera/core/runner.py` is the runner. For each stage it asks the parser
