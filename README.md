@@ -48,6 +48,7 @@ data.sustenaut.eu/power-auctions. Its parsers are in `src/soldera/parsers/eex/`:
 | discover | eex-french-auction-page | the page, and `files.json`: every file it links to, with its section, title and publishing date |
 | download | eex-french-auction-download | each file as fetched, and each file inside an archive |
 | select | eex-go-global-results-select | each monthly GO Global Results file, once, by its own name |
+| parse | eex-french-auction | `results.parquet` per file, in the canonical `auction_results` schema (`src/soldera/canonical/`) |
 
 ```sh
 bin/soldera run pipelines/eex-french-power-auctions.yaml

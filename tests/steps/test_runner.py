@@ -5,6 +5,7 @@ directory, where `soldera run` keeps its store (store/) and run log
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import zipfile
@@ -14,11 +15,12 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 import pytest
+import yaml
 from pubtest.core import dig, same
 from pubtest.plugin import run_program
 from pytest_bdd import given, parsers, scenarios, then
 
-scenarios("runner.feature", "run_log.feature", "discover.feature", "download.feature", "select.feature")
+scenarios("runner.feature", "run_log.feature", "discover.feature", "download.feature", "select.feature", "parse.feature")
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 
@@ -125,6 +127,64 @@ def answers_with_corrupt_zip(pubtest_ctx, monkeypatch, name, request, path):
         archive.writestr(path, "the original content")
     data = buffer.getvalue().replace(b"the original content", b"the altered! content")
     fake(pubtest_ctx, monkeypatch, name).answer(request, 200, Raw(data))
+
+
+def cell(text: str):
+    """A workbook cell from a table: a number when it reads as one."""
+    text = text.strip()
+    if text == "":
+        return None
+    try:
+        return int(text)
+    except ValueError:
+        pass
+    try:
+        return float(text)
+    except ValueError:
+        return text
+
+
+@given(parsers.parse('the "{name}" service answers "{request}" with a workbook:'))
+def answers_with_workbook(pubtest_ctx, monkeypatch, name, request, datatable):
+    import openpyxl  # noqa: PLC0415
+    from pubtest.steps.fakes import fake  # noqa: PLC0415
+
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = "results"
+    for line in datatable:
+        sheet.append([cell(c) for c in line])
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    fake(pubtest_ctx, monkeypatch, name).answer(request, 200, Raw(buffer.getvalue()))
+
+
+@given(parsers.parse('the pipeline accepts a "{issue}" at row {row:d} of "{file}" as the "{name}" service serves it, noting "{note}"'))
+def accepts_issue(pubtest_ctx, ctx, issue, row, file, name, note):
+    served = [a for request, answers in pubtest_ctx.fakes[name].answers.items() if request.endswith("/" + file)
+              for a in answers]
+    assert served, f"the {name} service serves no {file}"
+    body = served[-1][1]
+    data = body.encode() if not isinstance(body, Raw) else body.data
+    path = scratch(ctx) / "pipeline.yaml"
+    pipeline = yaml.safe_load(path.read_text(encoding="utf-8"))
+    stage = next(s for s in pipeline["stages"] if s["name"] == "parse")
+    stage.setdefault("options", {})["accepted_issues"] = [
+        {"file": file, "sha256": hashlib.sha256(data).hexdigest(), "row": row, "issue": issue, "note": note}]
+    path.write_text(yaml.safe_dump(pipeline, allow_unicode=True), encoding="utf-8")
+
+
+@then(parsers.parse('the parsed rows of "{stage}" are:'))
+def parsed_rows(ctx, stage, datatable):
+    store = scratch(ctx) / "store"
+    header, *body = datatable
+    actual = []
+    for item in latest_manifest(ctx, stage)["items"]:
+        for output in item["outputs"]:
+            for row in pq.read_table(store / output["key"]).to_pylist():
+                actual.append({k: "" if row[k] is None else str(row[k]) for k in header})
+    wanted = [{k: v.strip() for k, v in zip(header, line, strict=True)} for line in body]
+    assert actual == wanted, "the rows are:\n" + "\n".join(str(r) for r in actual)
 
 
 def latest_manifest(ctx, stage: str) -> dict:

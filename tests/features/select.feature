@@ -34,7 +34,7 @@ Feature: Stage 3, select: the monthly GO Global Results files, once each
       | 2020/20210120_October_2020_Global_Results.csv                  | october  |
       | 2022/20230315_November_2022_47_2_GLOBAL_Results_detailedresults.xlsx | november |
       | 2020/Resultats_encheres_20.xlsx                                | summary  |
-    When I run "soldera run pipeline.yaml"
+    When I run "soldera run pipeline.yaml --to select"
     Then it succeeds
     And it prints "select: eex-go-global-results-select@1.0.0 succeeded: 7 items, 7 built, 0 cached, 0 failed"
     And the published outputs of "select" are:
@@ -53,8 +53,8 @@ Feature: Stage 3, select: the monthly GO Global Results files, once each
     Given the "eex" service answers "GET /fileadmin/GO/results.zip" with a zip holding:
       | path                                          | content |
       | 2019/20190918_April_2019_global_results.xlsx  | april   |
-    And I ran "soldera run pipeline.yaml"
-    When I run "soldera run pipeline.yaml"
+    And I ran "soldera run pipeline.yaml --to select"
+    When I run "soldera run pipeline.yaml --to select"
     Then it succeeds
     And it prints "select: eex-go-global-results-select@1.0.0 succeeded: 2 items, 0 built, 2 cached, 0 failed"
 
@@ -63,6 +63,6 @@ Feature: Stage 3, select: the monthly GO Global Results files, once each
       | path                                         | content       |
       | a/20190918_April_2019_global_results.xlsx    | april         |
       | b/20190918_April_2019_global_results.xlsx    | april, again  |
-    When I run "soldera run pipeline.yaml"
+    When I run "soldera run pipeline.yaml --to select"
     Then the exit code is 1
     And stderr mentions "would both be kept as 20190918_April_2019_global_results.xlsx"
