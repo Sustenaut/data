@@ -13,3 +13,10 @@ stages:
     parser: eex-french-auction-download@1.0.0
     options:
       site: "${EEX_URL:-https://www.eex.com}"
+  - name: select
+    parser: eex-go-global-results-select@1.0.0
+  - name: parse
+    parser: eex-french-auction@1.0.0
+    options:
+      # Mistakes found in EEX's files, and what is done about each.
+      corrections: corrections/eex-french-power-auctions.yaml

@@ -2,6 +2,10 @@
 
     soldera run PIPELINE.yaml [--from STAGE|auto] [--to STAGE] [--force]
                               [--store DIR] [--run-log FILE] [--run-id ID] [--trigger KIND]
+    soldera corrections check FILE
+
+`corrections check` checks a corrections file's shape and tries each rule on
+the excerpt it keeps of the file it corrects.
 
 `--from auto` starts at the earliest stage whose pinned parser changed or whose
 input changed, and runs nothing when every stage is up to date. Without
@@ -41,11 +45,33 @@ def parser() -> argparse.ArgumentParser:
                      help="the JSONL file run log rows are appended to (SOLDERA_RUN_LOG)")
     run.add_argument("--run-id", help="the run's id, when what started it made one")
     run.add_argument("--trigger", choices=TRIGGERS, default="manual", help="what started the run")
+    fixes = commands.add_parser("corrections", help="work with a corrections file")
+    fix_commands = fixes.add_subparsers(dest="action", required=True)
+    check = fix_commands.add_parser("check", help="check each rule against the excerpt it keeps")
+    check.add_argument("file", help="the corrections file")
     return main
+
+
+def check_corrections(path: str) -> int:
+    from soldera.core import corrections  # noqa: PLC0415
+
+    try:
+        rules = corrections.load(path)
+    except corrections.CorrectionError as error:
+        print(f"soldera: {error}", file=sys.stderr)
+        return 2
+    problems = corrections.check(rules)
+    for problem in problems:
+        print(f"{path}: {problem}", file=sys.stderr)
+    checked = sum(1 for r in rules if r["kind"] in corrections.ROW_KINDS)
+    print(f"{path}: {len(rules)} rules, {checked} checked against their excerpts, {len(problems)} problems")
+    return 1 if problems else 0
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.command == "corrections":
+        return check_corrections(args.file)
     try:
         pipeline = pipeline_mod.load(args.pipeline)
         runner = Runner(pipeline, LocalStorage(args.store), JsonlRunLog(args.run_log), sys.stdout, sys.stderr)

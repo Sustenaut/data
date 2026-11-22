@@ -1,0 +1,121 @@
+# Mistakes found in EEX's published French GO auction results, and what the
+# pipeline does about each. This file is data: it can be sent to EEX as it
+# is, for them to correct the files at the source.
+#
+# Each rule gives the row exactly as EEX published it, and keeps an excerpt
+# of the file around it (accents as EEX meant them), with the file's hash,
+# so the evidence stays here when EEX corrects or removes the file. CI
+# checks every rule against its excerpt: `soldera corrections check FILE`.
+# The parse stage
+# applies the rule and leaves a note the app shows. When a new version of
+# the file no longer has the mistake, the rule no longer matches and the
+# run fails, so the rule is removed rather than left behind.
+#
+#   kind: wrong_row     a published row that is wrong; action drop, or set fields
+#   kind: missing_row   a row EEX left out; noted, never invented
+corrections:
+  - id: eex-2025-10-paca-thermique-repeated
+    file: 20260121_October_2025_7_GLOBAL_Results_detailedresults.xlsx
+    kind: wrong_row
+    row:
+      region: Provence-Alpes-Côte d'Azur
+      technology: Thermique
+      volume_offered: 2959
+      volume_sold: 2959
+      price: 0.17
+      winners: 1
+    action: drop
+    problem: >-
+      The October 2025 results (auction 7) list Provence-Alpes-Côte d'Azur
+      Thermique twice: 2,975 MWh on row 52 and 2,959 MWh on row 53.
+    evidence: >-
+      Row 53 repeats exactly Provence-Alpes-Côte d'Azur Thermique in September
+      2025 (auction 6): 2,959 MWh offered, 2,959 MWh sold, 0.17 EUR/MWh,
+      1 winner. It looks carried over from that file.
+    reported_to_provider: "no"
+    source_sha256: 599531eb73e49cdcce919d118969dfffc5baa6169cfdce39fb5e7c621d1b67e2
+    excerpt:
+      - {row: 50, region: Provence-Alpes-Côte d'Azur, technology: Hydraulique, volume_offered: 15345, volume_sold: 15345, price: 0.18, winners: 5}
+      - {row: 51, region: Provence-Alpes-Côte d'Azur, technology: Solaire, volume_offered: 151287, volume_sold: 151287, price: 0.21, winners: 7}
+      - {row: 52, region: Provence-Alpes-Côte d'Azur, technology: Thermique, volume_offered: 2975, volume_sold: 2975, price: 0.17, winners: 1}
+      - {row: 53, region: Provence-Alpes-Côte d'Azur, technology: Thermique, volume_offered: 2959, volume_sold: 2959, price: 0.17, winners: 1}
+
+  - id: eex-2025-10-idf-hydraulique-missing
+    file: 20260121_October_2025_7_GLOBAL_Results_detailedresults.xlsx
+    kind: missing_row
+    row:
+      region: Île-de-France
+      technology: Hydraulique
+    problem: >-
+      The October 2025 results (auction 7) have no row for Île-de-France
+      Hydraulique, which every other full auction lists (18 MWh in September 2025,
+      34 MWh in November 2025).
+    evidence: >-
+      The file has 48 rows but only 47 different region and technology pairs;
+      every other full auction has all 48 pairs.
+    reported_to_provider: "no"
+    source_sha256: 599531eb73e49cdcce919d118969dfffc5baa6169cfdce39fb5e7c621d1b67e2
+    excerpt:
+      - {row: 29, region: Haut-de-France, technology: Thermique, volume_offered: 35496, volume_sold: 35496, price: 0.18, winners: 3}
+      - {row: 30, region: Île-de-France, technology: Eolien onshore, volume_offered: 25146, volume_sold: 25144, price: 0.39, winners: 7}
+      - {row: 31, region: Île-de-France, technology: Solaire, volume_offered: 9634, volume_sold: 9634, price: 0.19, winners: 5}
+      - {row: 32, region: Île-de-France, technology: Thermique, volume_offered: 20805, volume_sold: 20805, price: 0.17, winners: 2}
+      - {row: 33, region: Normandie, technology: Eolien onshore, volume_offered: 135842, volume_sold: 135842, price: 0.22, winners: 8}
+
+  # Files that list their rows in another order than EEX's usual one
+  # (region by region, alphabetically, each with Eolien onshore,
+  # Hydraulique, Solaire and Thermique). The rows themselves are complete.
+  - id: eex-march-2019-row-order
+    file: 20190918_March_2019_global_results.xlsx
+    kind: row_order
+    problem: The March 2019 results list their rows in another order than EEX's usual one.
+    evidence: Every file from November 2019 on lists them region by region, alphabetically.
+    reported_to_provider: "not needed: the rows are complete"
+  - id: eex-april-2019-row-order
+    file: 20190918_April_2019_global_results.xlsx
+    kind: row_order
+    problem: The April 2019 results list their rows in another order than EEX's usual one.
+    evidence: Every file from November 2019 on lists them region by region, alphabetically.
+    reported_to_provider: "not needed: the rows are complete"
+  - id: eex-june-2019-row-order
+    file: 20191023_June_2019_global_results.xlsx
+    kind: row_order
+    problem: The June 2019 results list their rows in another order than EEX's usual one.
+    evidence: Every file from November 2019 on lists them region by region, alphabetically.
+    reported_to_provider: "not needed: the rows are complete"
+  - id: eex-july-2019-row-order
+    file: 20191120_July_2019_globalresults.xlsx
+    kind: row_order
+    problem: The July 2019 results list their rows in another order than EEX's usual one.
+    evidence: Every file from November 2019 on lists them region by region, alphabetically.
+    reported_to_provider: "not needed: the rows are complete"
+  - id: eex-august-2019-row-order
+    file: 20191120_August_2019_globalresults.xlsx
+    kind: row_order
+    problem: The August 2019 results list their rows in another order than EEX's usual one.
+    evidence: Every file from November 2019 on lists them region by region, alphabetically.
+    reported_to_provider: "not needed: the rows are complete"
+  - id: eex-september-2019-row-order
+    file: 20191218_September_2019_global_results.xlsx
+    kind: row_order
+    problem: The September 2019 results list their rows in another order than EEX's usual one.
+    evidence: Every file from November 2019 on lists them region by region, alphabetically.
+    reported_to_provider: "not needed: the rows are complete"
+  - id: eex-october-2019-row-order
+    file: 20200121_October_2019_global_results.xlsx
+    kind: row_order
+    problem: The October 2019 results list their rows in another order than EEX's usual one.
+    evidence: Every file from November 2019 on lists them region by region, alphabetically.
+    reported_to_provider: "not needed: the rows are complete"
+
+  # Auctions that offered only some segments.
+  - id: eex-2022-11-second-auction-partial
+    file: 20230315_November_2022_47_2_GLOBAL_Results_detailedresults.xlsx
+    kind: partial_auction
+    problem: >-
+      The second auction for November 2022 production (auction 47, round 2,
+      held 2023-03-15) lists 10 of the 48 region and technology segments.
+    evidence: >-
+      EEX announced a double auction for March 2023 (customer information of
+      2023-03-07); the file holds only the segments offered again.
+    reported_to_provider: "not needed: expected for a second auction"
