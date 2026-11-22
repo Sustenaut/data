@@ -58,9 +58,23 @@ class Pipeline:
         return [s.name for s in self.stages]
 
 
+def inside(path: str | Path, root: Path | None = None) -> Path:
+    """The pipeline file, resolved, which must be a YAML file under the
+    working directory (or `root`): a pipeline is a reviewed file of the
+    repository, never a path from elsewhere."""
+    base = (root or Path.cwd()).resolve()
+    resolved = (base / path).resolve()
+    if not resolved.is_relative_to(base):
+        raise PipelineError(f"{path} is outside {base}; a pipeline file must be inside the working directory")
+    if resolved.suffix not in (".yaml", ".yml"):
+        raise PipelineError(f"{path} is not a .yaml file")
+    return resolved
+
+
 def load(path: str | Path) -> Pipeline:
+    resolved = inside(path)
     try:
-        data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+        data = yaml.safe_load(resolved.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as error:
         raise PipelineError(f"cannot read {path}: {error}") from error
     if not isinstance(data, dict):

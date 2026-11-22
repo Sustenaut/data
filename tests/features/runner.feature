@@ -105,3 +105,18 @@ Feature: Running a pipeline's stages
     When I run "soldera run pipeline.yaml"
     Then the exit code is 2
     And stderr mentions "testing-upper has no version 9.9.9; it has 1.0.0, 2.0.0"
+
+  Scenario: A pipeline file outside the working directory is refused
+    When I run "soldera run ../pipeline.yaml"
+    Then the exit code is 2
+    And stderr mentions "a pipeline file must be inside the working directory"
+
+  Scenario: A pipeline file that is not YAML is refused
+    When I run "soldera run src/a.txt"
+    Then the exit code is 2
+    And stderr mentions "is not a .yaml file"
+
+  Scenario: A missing pipeline file is refused
+    When I run "soldera run missing.yaml"
+    Then the exit code is 2
+    And stderr mentions "cannot read missing.yaml"
