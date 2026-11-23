@@ -47,7 +47,10 @@ resource "google_artifact_registry_repository" "soldera" {
 # --- The store ----------------------------------------------------------------
 
 # Every stage's outputs, manifests and notes, mounted in the job at /store.
-# Objects are written once by their content hash, so nothing here expires.
+# Objects are written once by their content hash, so nothing current expires.
+# Versioning keeps a replaced or deleted object for 30 days (a stage's latest
+# manifest is the one thing rewritten), and every request is logged to the
+# bucket below.
 resource "google_storage_bucket" "store" {
   name                        = "${local.project}-soldera-store"
   location                    = local.region
@@ -55,9 +58,75 @@ resource "google_storage_bucket" "store" {
   public_access_prevention    = "enforced"
   force_destroy               = false
 
+  versioning {
+    enabled = true
+  }
+
+  lifecycle_rule {
+    action {
+      type = "Delete"
+    }
+    condition {
+      days_since_noncurrent_time = 30
+      with_state                 = "ARCHIVED"
+    }
+  }
+
+  logging {
+    log_bucket = google_storage_bucket.store_logs.name
+  }
+
   soft_delete_policy {
     retention_duration_seconds = 604800 # 7 days
   }
+}
+
+# The store's usage and storage logs, kept for a year. Only Cloud Storage
+# writes here; it logs its own requests to itself.
+resource "google_storage_bucket" "store_logs" {
+  name                        = "${local.project}-soldera-store-logs"
+  location                    = local.region
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+  force_destroy               = false
+
+  versioning {
+    enabled = true
+  }
+
+  lifecycle_rule {
+    action {
+      type = "Delete"
+    }
+    condition {
+      age = 365
+    }
+  }
+
+  lifecycle_rule {
+    action {
+      type = "Delete"
+    }
+    condition {
+      days_since_noncurrent_time = 30
+      with_state                 = "ARCHIVED"
+    }
+  }
+
+  logging {
+    log_bucket = "${local.project}-soldera-store-logs"
+  }
+
+  soft_delete_policy {
+    retention_duration_seconds = 604800 # 7 days
+  }
+}
+
+# Cloud Storage writes the logs as this group.
+resource "google_storage_bucket_iam_member" "store_logs_writer" {
+  bucket = google_storage_bucket.store_logs.name
+  role   = "roles/storage.objectCreator"
+  member = "group:cloud-storage-analytics@google.com"
 }
 
 # --- The run log --------------------------------------------------------------
@@ -106,9 +175,11 @@ resource "google_service_account" "ingest" {
   description  = "The soldera-ingest Cloud Run job: reads and writes its store bucket, appends to its run log."
 }
 
+# Read, write and replace objects (the mount's atomic writes delete the
+# temporary file), but not change the bucket or who may use it.
 resource "google_storage_bucket_iam_member" "ingest_store" {
   bucket = google_storage_bucket.store.name
-  role   = "roles/storage.objectAdmin"
+  role   = "roles/storage.objectUser"
   member = google_service_account.ingest.member
 }
 
@@ -236,11 +307,29 @@ resource "google_artifact_registry_repository_iam_member" "deploy_push" {
   member     = google_service_account.deploy.member
 }
 
-# Updating the job's image, and running it with other arguments.
+# Updating the job's image, and running it with other arguments: only what
+# `gcloud run jobs update` and `gcloud run jobs execute --wait` need, granted
+# on this one job.
+resource "google_project_iam_custom_role" "job_deployer" {
+  project     = local.project
+  role_id     = "solderaJobDeployer"
+  title       = "soldera job deployer"
+  description = "Deploys a new image to a Cloud Run job and runs it with other arguments."
+  permissions = [
+    "run.executions.get",
+    "run.executions.list",
+    "run.jobs.get",
+    "run.jobs.run",
+    "run.jobs.runWithOverrides",
+    "run.jobs.update",
+    "run.operations.get",
+  ]
+}
+
 resource "google_cloud_run_v2_job_iam_member" "deploy" {
   name     = google_cloud_run_v2_job.ingest.name
   location = local.region
-  role     = "roles/run.developer"
+  role     = google_project_iam_custom_role.job_deployer.id
   member   = google_service_account.deploy.member
 }
 

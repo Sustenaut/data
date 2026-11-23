@@ -116,12 +116,13 @@ everything around it:
 | Resource | What it is for |
 | --- | --- |
 | `soldera` registry | the ingest image (`Dockerfile`), the ten newest kept |
-| `sustenaut-soldera-store` bucket | the store, mounted in the job at `/store` |
+| `sustenaut-soldera-store` bucket | the store, mounted in the job at `/store`; versioned, replaced objects kept 30 days |
+| `sustenaut-soldera-store-logs` bucket | the store's access logs, kept a year |
 | `soldera.pipeline_stage_runs` | the run log, schema `src/soldera/core/schemas/pipeline_stage_runs.json` |
 | `soldera.stage_notes` | an external table over every stage run's `notes.parquet` in the bucket |
 | `soldera-ingest` job | one task, never retried, an hour at most, as `soldera-ingest@` |
 | `soldera-ingest-weekly` | Cloud Scheduler, Thursdays 07:00 Paris time, the morning after EEX's auction day |
-| `soldera-deploy@` | what this repository's workflows act as: push the image, update and run the job |
+| `soldera-deploy@` | what this repository's workflows act as: push the image, update and run the job, through the custom role `solderaJobDeployer` on that job only |
 
 Workflows:
 
@@ -137,7 +138,9 @@ To turn it on, once (shared-infra owns the pool): add `soldera` to
 `github_repositories`, so the pool's `github` provider admits main's runs
 here, and add soldera to `terraform_stacks` (account `terraform-soldera`,
 owner id 343693649, repository id 1467291589), so its `github-terraform`
-provider admits the `terraform` environment. Then make the `terraform`
+provider admits the `terraform` environment; its account needs to make
+service accounts, buckets, BigQuery tables, the Run job, the Scheduler job and
+the IAM bindings on them, plus one custom role (`roles/iam.roleAdmin`). Then make the `terraform`
 environment, limited to main, and set the repository variable
 `TERRAFORM_CI=on`; after the first apply, set `DEPLOY_CI=on` and run
 **ingest** once for the backfill. The project needs the Run, Artifact
