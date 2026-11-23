@@ -13,7 +13,9 @@ locals {
   region     = local.gcp.region
   repository = "Sustenaut/soldera"
   image      = "${local.region}-docker.pkg.dev/${local.project}/${google_artifact_registry_repository.soldera.repository_id}/ingest"
-  run_log    = "${local.project}.${google_bigquery_dataset.soldera.dataset_id}.${google_bigquery_table.pipeline_stage_runs.table_id}"
+  note_fields = ["note_id", "run_id", "pipeline", "stage", "parser_name", "parser_version", "item_key",
+  "severity", "kind", "subject", "message", "source_key", "source_sha256"]
+  run_log = "${local.project}.${google_bigquery_dataset.soldera.dataset_id}.${google_bigquery_table.pipeline_stage_runs.table_id}"
 }
 
 data "google_project" "this" {
@@ -160,10 +162,17 @@ resource "google_bigquery_table" "stage_notes" {
   description         = "The notes each stage run wrote, read from its notes.parquet in the store."
   deletion_protection = true
 
+  # Named, not detected: detecting reads a file, and there is none until the
+  # first run. The columns are soldera.core.notes.FIELDS, every one a string.
   external_data_configuration {
-    autodetect    = true
+    autodetect    = false
     source_format = "PARQUET"
     source_uris   = ["gs://${google_storage_bucket.store.name}/*notes.parquet"]
+    schema = jsonencode([for name in local.note_fields : {
+      name = name
+      type = "STRING"
+      mode = "NULLABLE"
+    }])
   }
 }
 
