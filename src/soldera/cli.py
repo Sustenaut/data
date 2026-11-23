@@ -38,9 +38,10 @@ from soldera.core.storage import LocalStorage, latest_outputs, open_store
 TRIGGERS = ("manual", "schedule", "deploy", "rerun")
 APP_PIPELINE = "pipelines/eex-french-power-auctions.yaml"
 # Streamlit's settings for the app: light, in the plots' ink, and nothing
-# sent to Streamlit.
+# sent to Streamlit. It listens where Streamlit does by default, which Cloud
+# Run reaches; no address is set here.
 APP_SETTINGS = {
-    "server.headless": "true", "server.address": "0.0.0.0", "browser.gatherUsageStats": "false",
+    "server.headless": "true", "browser.gatherUsageStats": "false",
     "server.enableXsrfProtection": "true", "client.toolbarMode": "viewer",
     "theme.base": "light", "theme.primaryColor": "#2F5D7C", "theme.textColor": "#2b2b2a",
 }
