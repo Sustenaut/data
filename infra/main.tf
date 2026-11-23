@@ -283,7 +283,7 @@ resource "google_cloud_run_v2_job_iam_member" "scheduler_runs_ingest" {
 # the same day; Thursday morning finds them.
 # Cloud Scheduler has no europe-north1; the nearest region it runs in calls
 # the job in europe-north1 just the same.
-resource "google_cloud_scheduler_job" "ingest_weekly" {
+resource "google_cloud_scheduler_job" "weekly" {
   name        = "soldera-ingest-weekly"
   region      = local.scheduler_region
   description = "Runs soldera-ingest every Thursday morning."
@@ -361,4 +361,19 @@ import {
 import {
   to = google_artifact_registry_repository.soldera
   id = "projects/sustenaut/locations/europe-north1/repositories/soldera"
+}
+
+# The same for the schedule: made, then refused cloudscheduler.jobs.enable,
+# so tainted.
+removed {
+  from = google_cloud_scheduler_job.ingest_weekly
+
+  lifecycle {
+    destroy = false
+  }
+}
+
+import {
+  to = google_cloud_scheduler_job.weekly
+  id = "projects/sustenaut/locations/europe-west1/jobs/soldera-ingest-weekly"
 }
