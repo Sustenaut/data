@@ -11,7 +11,7 @@ variable "serve_app" {
 }
 
 # Set by ./pubsec run (the terraform workflow, or ./with-secrets on a laptop)
-# from the Bitwarden project soldera, for the names infra/app.tf lists.
+# from the Bitwarden project Sustenaut, for the names infra/app.tf lists.
 variable "secret_values" {
   description = "Secret values by name, read from Bitwarden. Ephemeral: written to Secret Manager, never to the plan or state."
   type        = map(string)

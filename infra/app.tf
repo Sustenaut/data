@@ -32,7 +32,7 @@ resource "google_storage_bucket_iam_member" "app_reads_store" {
   member = data.google_service_account.app.member
 }
 
-# The values are kept in the Bitwarden Secrets Manager project soldera,
+# The values are kept in the Bitwarden Secrets Manager project Sustenaut,
 # under these names. The terraform workflow runs through ./pubsec run, which
 # reads them (with-secrets.json lists this file) and hands them over as the
 # ephemeral var.secret_values; each goes to Secret Manager through a

@@ -205,7 +205,7 @@ waits for `serve_app`. Once, in order:
 1. shared-infra makes the account `soldera-app` and the role
    `solderaServiceDeployer`, and lets this stack make `soldera-*` services
    and secrets. After this stack's next apply, the secrets exist, empty.
-2. Put their values in the Bitwarden Secrets Manager project `soldera`,
+2. Put their values in the Bitwarden Secrets Manager project `Sustenaut`,
    under the same names: the `sustenaut.eu` team client's secret as
    `soldera-oidc-client-secret`, and a new cookie key as
    `soldera-cookie-secret` (`openssl rand -base64 32 | tr -d '\n' | tr --
