@@ -75,6 +75,19 @@ resource "google_secret_manager_secret_iam_member" "app_reads_sign_in" {
   member    = data.google_service_account.app.member
 }
 
+# Cloud Run checks that whoever creates or changes the service may pull its
+# images, so this stack's own account (the terraform workflow's) reads the
+# registry. The ingest job never needed it: it starts from a public
+# placeholder image (main.tf).
+data "google_client_openid_userinfo" "terraform" {}
+
+resource "google_artifact_registry_repository_iam_member" "terraform_pulls" {
+  location   = local.region
+  repository = google_artifact_registry_repository.soldera.name
+  role       = "roles/artifactregistry.reader"
+  member     = "serviceAccount:${data.google_client_openid_userinfo.terraform.email}"
+}
+
 resource "google_cloud_run_v2_service" "app" {
   count = var.serve_app ? 1 : 0
 
@@ -194,7 +207,7 @@ resource "google_cloud_run_v2_service" "app" {
   }
 
   depends_on = [google_secret_manager_secret_iam_member.app_reads_sign_in, google_secret_manager_secret_version.app_sign_in,
-  google_storage_bucket_iam_member.app_reads_store]
+  google_storage_bucket_iam_member.app_reads_store, google_artifact_registry_repository_iam_member.terraform_pulls]
 }
 
 # Anyone may reach the service: oauth2-proxy, its front container, decides
