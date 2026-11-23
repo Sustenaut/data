@@ -5,7 +5,7 @@ output "image" {
 
 output "job" {
   description = "The Cloud Run job the deploy updates and the ingest workflow runs."
-  value       = google_cloud_run_v2_job.ingest.name
+  value       = google_cloud_run_v2_job.ingest_job.name
 }
 
 output "store_bucket" {
