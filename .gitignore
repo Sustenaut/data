@@ -8,3 +8,6 @@ coverage/
 /store/
 /runs.jsonl
 __pycache__/
+
+# Terraform working files; infra/.terraform.lock.hcl is committed
+.terraform/

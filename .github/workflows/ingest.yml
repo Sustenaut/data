@@ -1,0 +1,62 @@
+# Runs the soldera-ingest Cloud Run job now, from and to the stages asked
+# for, and waits for it: the run fails when the job does. The job's run log
+# rows say this workflow run started it. Its output is in the job's logs, and
+# each stage's row in BigQuery (soldera.pipeline_stage_runs).
+name: ingest
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: First stage to run (empty is every stage; auto is where a parser pin or an input changed)
+        type: choice
+        options: ['', auto, discover, download, select, parse, merge]
+        default: ''
+      to:
+        description: Last stage to run (empty is the last)
+        type: choice
+        options: ['', discover, download, select, parse, merge]
+        default: ''
+      force:
+        description: Build every item again, stored or not
+        type: boolean
+        default: false
+
+permissions: { contents: read, id-token: write }
+
+concurrency: { group: ingest-soldera, cancel-in-progress: false }
+
+env:
+  REGION: europe-north1
+  JOB: soldera-ingest
+  PIPELINE: pipelines/eex-french-power-auctions.yaml
+
+jobs:
+  ingest:
+    if: vars.DEPLOY_CI == 'on' && github.ref == 'refs/heads/main'
+    runs-on: sustenaut-ci
+    timeout-minutes: 70
+    steps:
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: projects/948171295184/locations/global/workloadIdentityPools/github/providers/github
+          service_account: soldera-deploy@sustenaut.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Run the job and wait for it
+        env:
+          FROM: ${{ inputs.from }}
+          TO: ${{ inputs.to }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          args="run,$PIPELINE"
+          trigger=manual
+          if [ -n "$FROM" ]; then args="$args,--from,$FROM"; trigger=rerun; fi
+          if [ -n "$TO" ]; then args="$args,--to,$TO"; fi
+          if [ "$FORCE" = true ]; then args="$args,--force"; fi
+          args="$args,--trigger,$trigger"
+          echo "soldera ${args//,/ }" >> "$GITHUB_STEP_SUMMARY"
+          gcloud run jobs execute "$JOB" --region "$REGION" --wait \
+            --args="$args" \
+            --update-env-vars="GITHUB_REPOSITORY=$GITHUB_REPOSITORY,GITHUB_RUN_ID=$GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT=$GITHUB_RUN_ATTEMPT,GITHUB_WORKFLOW=$GITHUB_WORKFLOW,GITHUB_SHA=$GITHUB_SHA,GITHUB_ACTOR=$GITHUB_ACTOR"

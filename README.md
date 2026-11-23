@@ -107,6 +107,50 @@ every rule against its excerpt (the tests run it too):
 bin/soldera corrections check corrections/eex-french-power-auctions.yaml
 ```
 
+## Deploying
+
+The ingest runs as the Cloud Run job `soldera-ingest`, in the `sustenaut`
+project (`pubrules.json`, `hosting.providers.gcp`). `infra/` makes it and
+everything around it:
+
+| Resource | What it is for |
+| --- | --- |
+| `soldera` registry | the ingest image (`Dockerfile`), the ten newest kept |
+| `sustenaut-soldera-store` bucket | the store, mounted in the job at `/store`; versioned, replaced objects kept 30 days |
+| `sustenaut-soldera-store-logs` bucket | the store's access logs, kept a year |
+| `soldera.pipeline_stage_runs` | the run log, schema `src/soldera/core/schemas/pipeline_stage_runs.json` |
+| `soldera.stage_notes` | an external table over every stage run's `notes.parquet` in the bucket |
+| `soldera-ingest` job | one task, never retried, an hour at most, as `soldera-ingest@` |
+| `soldera-ingest-weekly` | Cloud Scheduler, Thursdays 07:00 Paris time, the morning after EEX's auction day |
+| `soldera-deploy@` | what this repository's workflows act as: push the image, update and run the job, through the custom role `solderaJobDeployer` on that job only |
+
+Workflows:
+
+- **terraform** applies `infra/` from main with pubhost's `terraform.yml`
+  once the repository variable `TERRAFORM_CI` is `on`.
+- **deploy** builds the image on each change to main that touches it, checks
+  that it starts, pushes it and points the job at it, once `DEPLOY_CI` is `on`.
+- **ingest** (Actions, ingest, Run workflow) runs the job now with `from`,
+  `to` and `force`, and fails when the job does. The run log rows link back
+  to the workflow run.
+
+To turn it on, once (shared-infra owns the pool): add `soldera` to
+`github_repositories`, so the pool's `github` provider admits main's runs
+here, and add soldera to `terraform_stacks` (account `terraform-soldera`,
+owner id 343693649, repository id 1467291589), so its `github-terraform`
+provider admits the `terraform` environment; shared-infra also makes the
+accounts `soldera-ingest`, `soldera-scheduler` and `soldera-deploy` and the
+role `solderaJobDeployer`, which this stack reads and binds but may not make.
+Then make the `terraform`
+environment, limited to main, and set the repository variable
+`TERRAFORM_CI=on`; after the first apply, set `DEPLOY_CI=on` and run
+**ingest** once for the backfill. The project needs the Run, Artifact
+Registry, BigQuery, Cloud Scheduler and Storage APIs, which are the base
+stack's.
+
+`make lock` also writes `requirements.lock`, the image's packages at the
+suite's versions, with hashes.
+
 ## How a stage runs
 
 `src/soldera/core/runner.py` is the runner. For each stage it asks the parser

@@ -63,6 +63,21 @@ Feature: Running a pipeline's stages
     And the run log's final row for "upper" in run "r2" has "items_failed" equal to "1"
     And the run log's final row for "upper" in run "r2" has "items.2.error_message" equal to "c.txt asks to fail"
 
+  Scenario Outline: A failure says where the run was started, so its logs can be found
+    Given the environment sets "GITHUB_RUN_ID" to "<run id>"
+    And the environment sets "GITHUB_REPOSITORY" to "Sustenaut/soldera"
+    And the environment sets "CLOUD_RUN_JOB" to "<job>"
+    And the environment sets "CLOUD_RUN_EXECUTION" to "<execution>"
+    And a file "src/c.txt" holding "FAIL here"
+    When I run "soldera run pipeline.yaml --run-id r2"
+    Then the exit code is 1
+    And stderr mentions "Each error is in the run log under run r2. <where>"
+
+    Examples:
+      | run id | job            | execution            | where                                                                    |
+      | 123    | soldera-ingest | soldera-ingest-x7k2p | Started by https://github.com/Sustenaut/soldera/actions/runs/123.         |
+      |        | soldera-ingest | soldera-ingest-x7k2p | Cloud Run execution soldera-ingest-x7k2p of job soldera-ingest.           |
+
   Scenario: A bumped parser version runs from its stage and keeps the old outputs
     Given I ran "soldera run pipeline.yaml --run-id r1"
     And the file "pipeline.yaml" now pins "testing-upper@2.0.0"

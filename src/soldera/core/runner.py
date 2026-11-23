@@ -275,9 +275,15 @@ def failure_line(pipeline: str, run_id: str, stage: Stage, stage_count: int, out
     else:
         why = f"it could not start: {outcome.error}"
     not_run = f" Not run: {', '.join(skipped)}." if skipped else ""
+    started = trigger_context()
+    where = ""
+    if started.get("github_run_url"):
+        where = f" Started by {started['github_run_url']}."
+    elif started.get("cloud_run_execution"):
+        where = f" Cloud Run execution {started['cloud_run_execution']} of job {started.get('cloud_run_job', '')}."
     return (f"ingest run {run_id} failed: pipeline {pipeline} stopped at stage {stage.index} of {stage_count}, "
             f"{stage.name} ({stage.parser.ref()}): {why}.{not_run} Nothing this stage built was published; "
-            f"the last good output stays in place. Each error is in the run log under run {run_id}.")
+            f"the last good output stays in place. Each error is in the run log under run {run_id}.{where}")
 
 
 def cache_key(stage: Stage, item: WorkItem, run_id: str) -> str:

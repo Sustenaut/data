@@ -47,6 +47,9 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--force", action="store_true", help="build every item again, stored or not")
     run.add_argument("--store", default=os.environ.get("SOLDERA_STORE", "store"),
                      help="the directory stage outputs are kept in (SOLDERA_STORE)")
+    run.add_argument("--store-uri", default=os.environ.get("SOLDERA_STORE_URI") or None,
+                     help="what the store is, as the run log names it, such as gs://BUCKET when the "
+                          "store is that bucket, mounted (SOLDERA_STORE_URI)")
     run.add_argument("--run-log", default=os.environ.get("SOLDERA_RUN_LOG", "runs.jsonl"),
                      help="where run log rows go: a JSONL file, or bigquery:PROJECT.DATASET.TABLE "
                           "(SOLDERA_RUN_LOG)")
@@ -118,7 +121,8 @@ def main(argv: list[str] | None = None) -> int:
             return 2
     try:
         pipeline = pipeline_mod.load(args.pipeline)
-        runner = Runner(pipeline, LocalStorage(args.store), open_run_log(args.run_log), sys.stdout, sys.stderr)
+        storage = LocalStorage(args.store, args.store_uri)
+        runner = Runner(pipeline, storage, open_run_log(args.run_log), sys.stdout, sys.stderr)
         return runner.run(start=args.start, end=args.end, force=args.force, run_id=args.run_id,
                           trigger=args.trigger)
     except (pipeline_mod.PipelineError, RunError) as error:

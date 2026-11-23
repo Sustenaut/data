@@ -113,3 +113,9 @@ Feature: The run log and the notes
     When I run "soldera run pipeline.yaml --run-log bigquery:soldera"
     Then the exit code is 1
     And stderr mentions "'soldera' is not PROJECT.DATASET.TABLE"
+
+  Scenario: A store that is a mounted bucket is named by its gs:// URIs
+    When I run "soldera run pipeline.yaml --run-id r1 --store-uri gs://soldera-store"
+    Then it succeeds
+    And the run log's final row for "upper" in run "r1" has "output_manifest_uri" equal to "gs://soldera-store/02-upper/testing-upper@1.0.0/runs/r1/manifest.json"
+    And the run log's final row for "upper" in run "r1" has "notes_uri" equal to "gs://soldera-store/02-upper/testing-upper@1.0.0/runs/r1/notes.parquet"

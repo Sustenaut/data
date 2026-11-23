@@ -1,0 +1,23 @@
+# Applies infra/ from main, as terraform-soldera, the account shared-infra's
+# terraform_stacks makes for this repository, through Workload Identity Federation: no key is kept
+# anywhere. pubhost's terraform.yml does the work; nothing runs until the
+# repository variable TERRAFORM_CI is on (pubhost's README, "Terraform from CI").
+name: terraform
+
+on:
+  push:
+    branches: [main]
+    paths: [infra/**, pubrules.json, src/soldera/core/schemas/**, .github/workflows/terraform.yml]
+  workflow_dispatch:
+
+permissions: { contents: read, id-token: write, pull-requests: read }
+
+jobs:
+  terraform:
+    uses: Sustenaut/pubhost/.github/workflows/terraform.yml@cd88da2277ef8772744e14c38df24b350ee2cacb # v0.2.0
+    with:
+      runs-on: sustenaut-ci
+      terraform-dir: infra
+      workload-identity-provider: projects/948171295184/locations/global/workloadIdentityPools/github/providers/github-terraform
+      service-account: terraform-soldera@sustenaut.iam.gserviceaccount.com
+      secrets: false
