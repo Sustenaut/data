@@ -9,3 +9,17 @@ variable "serve_app" {
   type        = bool
   default     = false
 }
+
+# Set by ./pubsec run (the terraform workflow, or ./with-secrets on a laptop)
+# from the Bitwarden project Sustenaut, for the names infra/app.tf lists.
+variable "secret_values" {
+  description = "Secret values by name, read from Bitwarden. Ephemeral: written to Secret Manager, never to the plan or state."
+  type        = map(string)
+  ephemeral   = true
+  sensitive   = true
+}
+
+variable "secret_revisions" {
+  description = "Each secret's last change in Bitwarden (epoch seconds), by name. A new one adds a Secret Manager version."
+  type        = map(number)
+}
