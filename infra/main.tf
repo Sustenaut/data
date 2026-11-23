@@ -203,7 +203,7 @@ resource "google_bigquery_table_iam_member" "ingest_run_log" {
 
 # One task, never retried: a failed run fails loudly and waits for a person,
 # who re-runs it from the ingest workflow.
-resource "google_cloud_run_v2_job" "ingest" {
+resource "google_cloud_run_v2_job" "ingest_job" {
   name                = "soldera-ingest"
   location            = local.region
   deletion_protection = true
@@ -272,7 +272,7 @@ data "google_service_account" "scheduler" {
 }
 
 resource "google_cloud_run_v2_job_iam_member" "scheduler_runs_ingest" {
-  name     = google_cloud_run_v2_job.ingest.name
+  name     = google_cloud_run_v2_job.ingest_job.name
   location = local.region
   role     = "roles/run.invoker"
   member   = data.google_service_account.scheduler.member
@@ -289,7 +289,7 @@ resource "google_cloud_scheduler_job" "ingest_weekly" {
 
   http_target {
     http_method = "POST"
-    uri         = "https://run.googleapis.com/v2/projects/${local.project}/locations/${local.region}/jobs/${google_cloud_run_v2_job.ingest.name}:run"
+    uri         = "https://run.googleapis.com/v2/projects/${local.project}/locations/${local.region}/jobs/${google_cloud_run_v2_job.ingest_job.name}:run"
 
     oauth_token {
       service_account_email = data.google_service_account.scheduler.email
@@ -324,7 +324,7 @@ resource "google_artifact_registry_repository_iam_member" "deploy_push" {
 # on this one job. The role is shared-infra's, since this stack may not make
 # roles.
 resource "google_cloud_run_v2_job_iam_member" "deploy" {
-  name     = google_cloud_run_v2_job.ingest.name
+  name     = google_cloud_run_v2_job.ingest_job.name
   location = local.region
   role     = "projects/${local.project}/roles/solderaJobDeployer"
   member   = data.google_service_account.deploy.member
@@ -335,4 +335,21 @@ resource "google_service_account_iam_member" "deploy_acts_as_ingest" {
   service_account_id = data.google_service_account.ingest.name
   role               = "roles/iam.serviceAccountUser"
   member             = data.google_service_account.deploy.member
+}
+
+# The first apply made the job but could not read it back (2026-11-23), so
+# its state was marked tainted and every plan after would replace it, which
+# deletion_protection forbids. Forgetting that entry and importing the job
+# under a new address keeps the job as it is. Both blocks can go once applied.
+removed {
+  from = google_cloud_run_v2_job.ingest
+
+  lifecycle {
+    destroy = false
+  }
+}
+
+import {
+  to = google_cloud_run_v2_job.ingest_job
+  id = "projects/sustenaut/locations/europe-north1/jobs/soldera-ingest"
 }
