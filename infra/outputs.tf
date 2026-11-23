@@ -20,7 +20,7 @@ output "run_log" {
 
 output "deploy_service_account" {
   description = "The account GitHub Actions in Sustenaut/soldera deploy and re-run as, named in deploy.yml and ingest.yml."
-  value       = google_service_account.deploy.email
+  value       = data.google_service_account.deploy.email
 }
 
 output "workload_identity_provider" {

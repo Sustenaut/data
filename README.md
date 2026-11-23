@@ -138,9 +138,10 @@ To turn it on, once (shared-infra owns the pool): add `soldera` to
 `github_repositories`, so the pool's `github` provider admits main's runs
 here, and add soldera to `terraform_stacks` (account `terraform-soldera`,
 owner id 343693649, repository id 1467291589), so its `github-terraform`
-provider admits the `terraform` environment; its account needs to make
-service accounts, buckets, BigQuery tables, the Run job, the Scheduler job and
-the IAM bindings on them, plus one custom role (`roles/iam.roleAdmin`). Then make the `terraform`
+provider admits the `terraform` environment; shared-infra also makes the
+accounts `soldera-ingest`, `soldera-scheduler` and `soldera-deploy` and the
+role `solderaJobDeployer`, which this stack reads and binds but may not make.
+Then make the `terraform`
 environment, limited to main, and set the repository variable
 `TERRAFORM_CI=on`; after the first apply, set `DEPLOY_CI=on` and run
 **ingest** once for the backfill. The project needs the Run, Artifact

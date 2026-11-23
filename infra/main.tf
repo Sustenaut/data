@@ -169,10 +169,12 @@ resource "google_bigquery_table" "stage_notes" {
 
 # --- The job ------------------------------------------------------------------
 
-resource "google_service_account" "ingest" {
-  account_id   = "soldera-ingest"
-  display_name = "soldera ingest"
-  description  = "The soldera-ingest Cloud Run job: reads and writes its store bucket, appends to its run log."
+# The job's account: reads and writes its store bucket, appends to its run
+# log. shared-infra makes soldera's three accounts and lets this stack set
+# their IAM, so that this stack can never set IAM on any other account.
+data "google_service_account" "ingest" {
+  project    = local.project
+  account_id = "soldera-ingest"
 }
 
 # Read, write and replace objects (the mount's atomic writes delete the
@@ -180,14 +182,14 @@ resource "google_service_account" "ingest" {
 resource "google_storage_bucket_iam_member" "ingest_store" {
   bucket = google_storage_bucket.store.name
   role   = "roles/storage.objectUser"
-  member = google_service_account.ingest.member
+  member = data.google_service_account.ingest.member
 }
 
 resource "google_bigquery_table_iam_member" "ingest_run_log" {
   dataset_id = google_bigquery_dataset.soldera.dataset_id
   table_id   = google_bigquery_table.pipeline_stage_runs.table_id
   role       = "roles/bigquery.dataEditor"
-  member     = google_service_account.ingest.member
+  member     = data.google_service_account.ingest.member
 }
 
 # One task, never retried: a failed run fails loudly and waits for a person,
@@ -202,7 +204,7 @@ resource "google_cloud_run_v2_job" "ingest" {
     parallelism = 1
 
     template {
-      service_account       = google_service_account.ingest.email
+      service_account       = data.google_service_account.ingest.email
       timeout               = "3600s"
       max_retries           = 0
       execution_environment = "EXECUTION_ENVIRONMENT_GEN2"
@@ -254,17 +256,17 @@ resource "google_cloud_run_v2_job" "ingest" {
 
 # --- The schedule -------------------------------------------------------------
 
-resource "google_service_account" "scheduler" {
-  account_id   = "soldera-scheduler"
-  display_name = "soldera scheduler"
-  description  = "Cloud Scheduler: starts the soldera-ingest job, and nothing else."
+# Cloud Scheduler's account (shared-infra's): starts the job, nothing else.
+data "google_service_account" "scheduler" {
+  project    = local.project
+  account_id = "soldera-scheduler"
 }
 
 resource "google_cloud_run_v2_job_iam_member" "scheduler_runs_ingest" {
   name     = google_cloud_run_v2_job.ingest.name
   location = local.region
   role     = "roles/run.invoker"
-  member   = google_service_account.scheduler.member
+  member   = data.google_service_account.scheduler.member
 }
 
 # EEX holds each month's auction on a Wednesday and publishes its results
@@ -281,21 +283,22 @@ resource "google_cloud_scheduler_job" "ingest_weekly" {
     uri         = "https://run.googleapis.com/v2/projects/${local.project}/locations/${local.region}/jobs/${google_cloud_run_v2_job.ingest.name}:run"
 
     oauth_token {
-      service_account_email = google_service_account.scheduler.email
+      service_account_email = data.google_service_account.scheduler.email
     }
   }
 }
 
 # --- Deploys and re-runs from GitHub Actions, without keys ----------------------
 
-resource "google_service_account" "deploy" {
-  account_id   = "soldera-deploy"
-  display_name = "soldera deploy"
-  description  = "GitHub Actions in ${local.repository}: pushes the ingest image, deploys it to soldera-ingest, and starts the job."
+# GitHub Actions' account (shared-infra's): pushes the ingest image, deploys
+# it to the job, and starts the job.
+data "google_service_account" "deploy" {
+  project    = local.project
+  account_id = "soldera-deploy"
 }
 
 resource "google_service_account_iam_member" "deploy_from_github" {
-  service_account_id = google_service_account.deploy.name
+  service_account_id = data.google_service_account.deploy.name
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/${var.workload_identity_pool}/attribute.repository/${local.repository}"
 }
@@ -304,38 +307,23 @@ resource "google_artifact_registry_repository_iam_member" "deploy_push" {
   location   = local.region
   repository = google_artifact_registry_repository.soldera.name
   role       = "roles/artifactregistry.writer"
-  member     = google_service_account.deploy.member
+  member     = data.google_service_account.deploy.member
 }
 
 # Updating the job's image, and running it with other arguments: only what
 # `gcloud run jobs update` and `gcloud run jobs execute --wait` need, granted
-# on this one job.
-resource "google_project_iam_custom_role" "job_deployer" {
-  project     = local.project
-  role_id     = "solderaJobDeployer"
-  title       = "soldera job deployer"
-  description = "Deploys a new image to a Cloud Run job and runs it with other arguments."
-  permissions = [
-    "run.executions.get",
-    "run.executions.list",
-    "run.jobs.get",
-    "run.jobs.run",
-    "run.jobs.runWithOverrides",
-    "run.jobs.update",
-    "run.operations.get",
-  ]
-}
-
+# on this one job. The role is shared-infra's, since this stack may not make
+# roles.
 resource "google_cloud_run_v2_job_iam_member" "deploy" {
   name     = google_cloud_run_v2_job.ingest.name
   location = local.region
-  role     = google_project_iam_custom_role.job_deployer.id
-  member   = google_service_account.deploy.member
+  role     = "projects/${local.project}/roles/solderaJobDeployer"
+  member   = data.google_service_account.deploy.member
 }
 
 # A job that runs as the ingest account is deployed by one that may act as it.
 resource "google_service_account_iam_member" "deploy_acts_as_ingest" {
-  service_account_id = google_service_account.ingest.name
+  service_account_id = data.google_service_account.ingest.name
   role               = "roles/iam.serviceAccountUser"
-  member             = google_service_account.deploy.member
+  member             = data.google_service_account.deploy.member
 }
