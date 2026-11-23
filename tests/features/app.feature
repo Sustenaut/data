@@ -71,6 +71,15 @@ Feature: The power-auctions app's numbers
       | a2      | 2024-12-01 | wind       | 2       | 0              | 2.00 | 2.00 | 3.00   | 3.00 | 4.00 | 4.00 |
       | a2      | 2024-12-01 | solar      | 2       | 0              | 1.00 | 1.00 | 2.00   | 2.00 | 3.00 | 3.00 |
 
+  Scenario: By region, each region's statistics are of its segments across the auctions kept
+    When the regions' statistics are made, weighted by MWh
+    Then the regions' statistics are:
+      | region | technology | auctions | segments | unsold_segments | mwh_sold | min  | median | mean | max  |
+      | FR-ARA | wind       | 2        | 2        | 0               | 300      | 1.00 | 1.67   | 1.67 | 2.00 |
+      | FR-BRE | wind       | 2        | 2        | 0               | 400      | 3.00 | 3.25   | 3.25 | 4.00 |
+      | FR-ARA | solar      | 2        | 2        | 0               | 150      | 1.00 | 1.33   | 1.33 | 2.00 |
+      | FR-BRE | solar      | 2        | 1        | 1               | 100      | 3.00 | 3.00   | 3.00 | 3.00 |
+
   Scenario Outline: The filters keep the segments of the auctions they match
     When the segments are filtered with <filter> set to "<value>"
     Then <count> segments are kept, from the auctions "<auctions>"
@@ -121,7 +130,7 @@ Feature: The power-auctions app's numbers
   Scenario: The app draws both pages from the database without an error
     When the app is opened on the database
     Then the app shows no error
-    And the app has the tabs "Price distribution, Prices over time"
+    And the app has the tabs "Price distribution, Prices over time, By region"
     And the app's distribution page describes "2 auctions by auction date from January 2025 to February 2025, in every region."
 
   Scenario: Every control redraws the pages without an error
@@ -137,6 +146,8 @@ Feature: The power-auctions app's numbers
       | toggle      | Weight by MWh sold              | false       |
       | radio       | Hover shows                     | all         |
       | radio       | #time_layout                    | overlay     |
+      | radio       | #map_measure                    | mwh_sold    |
+      | toggle      | #map_weighted                   | false       |
       | radio       | Date by                         | production  |
       | multiselect | Regions                         | FR-ARA      |
       | multiselect | Technologies                    | solar       |
@@ -155,6 +166,7 @@ Feature: The power-auctions app's numbers
       | radio   | Bin spacing                     | log      |
       | radio   | Layout                          | overlay  |
       | radio   | Hover shows                     | all      |
+      | radio   | #map_measure                    | median   |
     Then the app shows no error
     And the app's distribution page describes "2 auctions by auction date from January 2025 to February 2025, in every region. Every technology combined."
 
