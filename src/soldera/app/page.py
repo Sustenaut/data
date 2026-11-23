@@ -31,8 +31,8 @@ from soldera.parsers.eex.results import REGION_NAMES
 # around them takes the same tokens from .streamlit/config.toml, in light and
 # dark, which the viewer switches between in the menu's Settings.
 INKS = {
-    "light": dict(ink="#17110c", muted="#5d4d3f", grid="#ddd4bf", surface="#fffdf6"),
-    "dark": dict(ink="#f3efe2", muted="#b9ab95", grid="#3a2a1e", surface="#221911"),
+    "light": dict(ink="#17110c", muted="#5d4d3f", grid="#ddd4bf", surface="#fffdf6", sunken="#ede6d4"),
+    "dark": dict(ink="#f3efe2", muted="#b9ab95", grid="#3a2a1e", surface="#221911", sunken="#2b2017"),
 }
 FONT_FAMILY = '"Nunito Sans", system-ui, -apple-system, "Segoe UI", sans-serif'
 
@@ -102,7 +102,8 @@ def style(figure: go.Figure, height: int, legend_below: bool = False) -> go.Figu
 
 def sidebar(choices: data.Choices) -> data.Filters:
     side = st.sidebar
-    side.header("Which auctions")
+    with side.container(key="filters_title"):
+        st.header("Filters", anchor=False)
     date_by = side.radio("Date by", ["auction", "production"], horizontal=True,
                          format_func={"auction": "Auction date", "production": "Production month"}.get,
                          help="An auction sells the guarantees of one production month, usually two or three "
@@ -502,6 +503,9 @@ MASTHEAD_CSS = """<style>
   overflow: hidden; text-overflow: ellipsis; }}
 .st-key-masthead [data-testid="stCaptionContainer"] {{ margin-top: 1rem; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; }}
+[data-testid="stSidebarHeader"] {{ position: sticky; top: 0; z-index: 999990; background: {sunken}; }}
+[data-testid="stLayoutWrapper"]:has(> .st-key-filters_title) {{ position: sticky; top: {sidebar_header}; z-index: 999989;
+  background: {sunken}; }}
 [data-testid="stTabs"] [role="tablist"] {{ position: sticky; top: 9rem; z-index: 999989;
   background: {ground}; }}
 </style>"""
@@ -509,7 +513,8 @@ MASTHEAD_CSS = """<style>
 
 def masthead(caption: str = "") -> None:
     """The page's title and its caption, kept at the top as the page scrolls."""
-    st.html(MASTHEAD_CSS.format(ground=inks()["surface"]))
+    colours = inks()
+    st.html(MASTHEAD_CSS.format(ground=colours["surface"], sunken=colours["sunken"], sidebar_header="3.75rem"))
     with st.container(key="masthead"):
         st.title("French guarantees of origin auctions", anchor=False)
         if caption:
