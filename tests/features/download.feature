@@ -78,6 +78,28 @@ Feature: Stage 2, download: every file the page links to
     And stderr mentions "download: latest.xlsx failed: HttpError: GET"
     And stderr mentions "answered 404"
 
+  Scenario: A busy server is asked again, and a file that keeps failing fails after three tries
+    Given the environment sets "SOLDERA_HTTP_RETRY_DELAY" to "0"
+    And the "eex" service answers "GET /en/markets/energy-certificates/french-auctions-power" with 200 and:
+      """
+      <h2>Guarantees of Origin Data</h2>
+      <a href="/fileadmin/GO/busy.xlsx">xlsx</a>
+      <a href="/fileadmin/GO/down.xlsx">xlsx</a>
+      """
+    And the "eex" service answers "GET /fileadmin/GO/busy.xlsx" with 503
+    And the "eex" service answers "GET /fileadmin/GO/busy.xlsx" with 200 and:
+      """
+      fetched on the second try
+      """
+    And the "eex" service answers "GET /fileadmin/GO/down.xlsx" with 502
+    When I run "soldera run pipeline.yaml --to download"
+    Then the exit code is 1
+    And the "eex" service was asked "GET /fileadmin/GO/busy.xlsx" 2 times
+    And the "eex" service was asked "GET /fileadmin/GO/down.xlsx" 3 times
+    And stderr mentions "download: down.xlsx failed: HttpError: GET http://127.0.0.1"
+    And stderr mentions "/fileadmin/GO/down.xlsx answered 502 Bad Gateway after 3 tries"
+    And stderr mentions "1 of 2 items failed: down.xlsx"
+
   Scenario: A link to another site is not fetched
     Given the "eex" service answers "GET /en/markets/energy-certificates/french-auctions-power" with 200 and:
       """

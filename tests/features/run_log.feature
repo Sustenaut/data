@@ -61,3 +61,55 @@ Feature: The run log and the notes
       | run_id | item_key | kind         | severity | message             |
       | r1     | b.txt    | testing_note | warning  | b.txt holds a note  |
     And the note ids of "upper" are the same in runs "r1" and "r2"
+
+  Scenario: The run log can go to BigQuery, signed in as the job's service account
+    Given the "metadata" service is the metadata server of a job, giving the token "t0ken"
+    And the "bigquery" service answers "POST /bigquery/v2/projects/sustenaut/datasets/soldera/tables/pipeline_stage_runs/insertAll" with 200 and:
+      """
+      {"kind": "bigquery#tableDataInsertAllResponse"}
+      """
+    And a file "src/c.txt" holding "FAIL"
+    When I run "soldera run pipeline.yaml --run-id r1 --run-log bigquery:sustenaut.soldera.pipeline_stage_runs"
+    Then the exit code is 1
+    And the "bigquery" service was sent the run log rows:
+      | run_id | stage_name | status    | items_failed |
+      | r1     | fetch      | running   | None         |
+      | r1     | fetch      | succeeded | 0            |
+      | r1     | upper      | running   | None         |
+      | r1     | upper      | failed    | 1            |
+    And every request to the "bigquery" service carried the header "Authorization" set to "Bearer t0ken"
+    And the "metadata" service was asked "GET /computeMetadata/v1/instance/service-accounts/default/token" 1 times
+
+  Scenario: A row BigQuery refuses stops the run, saying why
+    Given the "metadata" service is the metadata server of a job, giving the token "t0ken"
+    And the "bigquery" service answers "POST /bigquery/v2/projects/sustenaut/datasets/soldera/tables/pipeline_stage_runs/insertAll" with 200 and:
+      """
+      {"insertErrors": [{"index": 0, "errors": [{"reason": "invalid", "location": "config", "message": "no such field: config."}]}]}
+      """
+    When I run "soldera run pipeline.yaml --run-log bigquery:sustenaut.soldera.pipeline_stage_runs"
+    Then the exit code is 1
+    And stderr mentions "soldera: the run stopped: sustenaut.soldera.pipeline_stage_runs refused the run log row: config: no such field: config."
+
+  Scenario: BigQuery refusing the request stops the run, saying why
+    Given the "metadata" service is the metadata server of a job, giving the token "t0ken"
+    And the "bigquery" service answers "POST /bigquery/v2/projects/sustenaut/datasets/soldera/tables/pipeline_stage_runs/insertAll" with 403 and:
+      """
+      {"error": {"message": "Access Denied: Table sustenaut:soldera.pipeline_stage_runs"}}
+      """
+    When I run "soldera run pipeline.yaml --run-log bigquery:sustenaut.soldera.pipeline_stage_runs"
+    Then the exit code is 1
+    And stderr mentions "soldera: the run stopped: cannot write the run log to sustenaut.soldera.pipeline_stage_runs: POST"
+    And stderr mentions "answered 403 Forbidden: {"
+    And stderr mentions "Access Denied"
+
+  Scenario: No token for the job stops the run before any stage
+    Given the "metadata" service is the metadata server of a job, answering 403 for a token
+    When I run "soldera run pipeline.yaml --run-log bigquery:sustenaut.soldera.pipeline_stage_runs"
+    Then the exit code is 1
+    And stderr mentions "soldera: the run stopped: cannot write the run log to sustenaut.soldera.pipeline_stage_runs"
+    And stderr mentions "the service account is disabled"
+
+  Scenario: A BigQuery run log must name a table
+    When I run "soldera run pipeline.yaml --run-log bigquery:soldera"
+    Then the exit code is 1
+    And stderr mentions "'soldera' is not PROJECT.DATASET.TABLE"

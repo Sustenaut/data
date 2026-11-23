@@ -387,3 +387,55 @@ def database_answers(ctx, stage, sql, datatable):
     assert [h.strip() for h in header] == columns, f"the columns are {columns}"
     wanted = [[c.strip() for c in line] for line in body]
     assert actual == wanted, "the rows are:\n" + "\n".join(" | ".join(r) for r in actual)
+
+
+def metadata_server(ctx, pubtest_ctx, monkeypatch, name: str, token_status: int, token: str) -> None:
+    """A fake of the metadata server Cloud Run gives every job, so
+    google-auth's own sign-in runs as it does there, and nothing reaches Google."""
+    from pubtest.steps.fakes import fake  # noqa: PLC0415
+
+    service = fake(pubtest_ctx, monkeypatch, name)
+    google = {"Metadata-Flavor": "Google"}
+    plain, as_json = {**google, "Content-Type": "text/plain"}, {**google, "Content-Type": "application/json"}
+    account = "GET /computeMetadata/v1/instance/service-accounts/default/"
+    service.answer("GET /", 200, "", plain)
+    service.answer("GET /computeMetadata/v1/project/project-id", 200, "sustenaut", plain)
+    service.answer(account, 200, json.dumps({"email": "soldera-ingest@sustenaut.iam.gserviceaccount.com",
+                                             "aliases": ["default"], "scopes": []}), as_json)
+    service.answer(account + "token", token_status,
+                   json.dumps({"access_token": token, "expires_in": 3600, "token_type": "Bearer"}
+                              if token_status == 200 else {"error": "the service account is disabled"}), as_json)
+    host = service.url.removeprefix("http://")
+    monkeypatch.setenv("GCE_METADATA_HOST", host)
+    monkeypatch.setenv("GCE_METADATA_IP", host)
+    monkeypatch.setenv("CLOUDSDK_CONFIG", str(scratch(ctx) / "no-gcloud"))
+    monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
+
+
+@given(parsers.parse('the "{name}" service is the metadata server of a job, giving the token "{token}"'))
+def metadata_gives(ctx, pubtest_ctx, monkeypatch, name, token):
+    metadata_server(ctx, pubtest_ctx, monkeypatch, name, 200, token)
+
+
+@given(parsers.parse('the "{name}" service is the metadata server of a job, answering {status:d} for a token'))
+def metadata_refuses(ctx, pubtest_ctx, monkeypatch, name, status):
+    metadata_server(ctx, pubtest_ctx, monkeypatch, name, status, "")
+
+
+@then(parsers.parse('the "{name}" service was sent the run log rows:'))
+def sent_run_log_rows(pubtest_ctx, name, datatable):
+    schema = json.loads((REPOSITORY / "src/soldera/core/schemas/pipeline_stage_runs.json").read_text())
+    json_columns = {f["name"] for f in schema if f["type"] == "JSON"}
+    sent = []
+    for request in pubtest_ctx.fakes[name].requests:
+        if request["path"].endswith("/insertAll"):
+            for row in json.loads(request["body"])["rows"]:
+                assert row["insertId"], "a row was sent without an insertId"
+                for column in json_columns & set(row["json"]):
+                    value = row["json"][column]
+                    assert value is None or isinstance(value, str), f"{column} was sent as {type(value).__name__}"
+                sent.append(row["json"])
+    header, *body = datatable
+    actual = [{k: str(r.get(k)) for k in header} for r in sent]
+    wanted = [{k: v.strip() for k, v in zip(header, line, strict=True)} for line in body]
+    assert actual == wanted, f"the rows sent were {actual}"

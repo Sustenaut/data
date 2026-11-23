@@ -1,0 +1,186 @@
+[
+  {
+    "name": "run_id",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "The run, shared by every stage it ran"
+  },
+  {
+    "name": "pipeline",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "The pipeline's name"
+  },
+  {
+    "name": "stage_name",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "The stage"
+  },
+  {
+    "name": "stage_index",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "description": "Its place in the pipeline, from 1"
+  },
+  {
+    "name": "parser_name",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "The parser the stage pins"
+  },
+  {
+    "name": "parser_version",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Its version"
+  },
+  {
+    "name": "parser_code_hash",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Hash of the parser's module, so an edit without a version bump shows"
+  },
+  {
+    "name": "code_version",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "The commit the code was built from"
+  },
+  {
+    "name": "status",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "running, succeeded or failed; a stage's newest row is its state"
+  },
+  {
+    "name": "trigger",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "What started the run: manual, schedule, ..."
+  },
+  {
+    "name": "rerun_from_stage",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "The first stage of a run that did not start at the first stage"
+  },
+  {
+    "name": "host",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "local, github-actions or cloud-run"
+  },
+  {
+    "name": "trigger_context",
+    "type": "JSON",
+    "mode": "NULLABLE",
+    "description": "The workflow run, job execution and machine that ran it"
+  },
+  {
+    "name": "config",
+    "type": "JSON",
+    "mode": "NULLABLE",
+    "description": "The stage's options, --force, --from, --to and every stage's pin"
+  },
+  {
+    "name": "started_at",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE",
+    "description": "When the stage started"
+  },
+  {
+    "name": "finished_at",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE",
+    "description": "When it ended; empty while running"
+  },
+  {
+    "name": "logged_at",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED",
+    "description": "When this row was written"
+  },
+  {
+    "name": "upstream_manifest_uri",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "The manifest of the stage run this one read"
+  },
+  {
+    "name": "output_manifest_uri",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "This stage run's manifest"
+  },
+  {
+    "name": "notes_uri",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "This stage run's notes.parquet, which stage_notes reads"
+  },
+  {
+    "name": "notes_count",
+    "type": "INTEGER",
+    "mode": "NULLABLE",
+    "description": "How many notes it wrote"
+  },
+  {
+    "name": "items_total",
+    "type": "INTEGER",
+    "mode": "NULLABLE",
+    "description": "Work items planned"
+  },
+  {
+    "name": "items_succeeded",
+    "type": "INTEGER",
+    "mode": "NULLABLE",
+    "description": "Items built or reused"
+  },
+  {
+    "name": "items_cached",
+    "type": "INTEGER",
+    "mode": "NULLABLE",
+    "description": "Items reused from an earlier run"
+  },
+  {
+    "name": "items_failed",
+    "type": "INTEGER",
+    "mode": "NULLABLE",
+    "description": "Items that failed"
+  },
+  {
+    "name": "rows_out",
+    "type": "INTEGER",
+    "mode": "NULLABLE",
+    "description": "Rows the items wrote, where they count rows"
+  },
+  {
+    "name": "bytes_out",
+    "type": "INTEGER",
+    "mode": "NULLABLE",
+    "description": "Bytes the items wrote"
+  },
+  {
+    "name": "items",
+    "type": "JSON",
+    "mode": "NULLABLE",
+    "description": "Each item: key, status, inputs, outputs, error"
+  },
+  {
+    "name": "error_class",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Why the stage could not start, when it could not"
+  },
+  {
+    "name": "error_message",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "traceback_tail",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  }
+]
