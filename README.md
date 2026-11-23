@@ -121,7 +121,7 @@ everything around it:
 | `soldera.pipeline_stage_runs` | the run log, schema `src/soldera/core/schemas/pipeline_stage_runs.json` |
 | `soldera.stage_notes` | an external table over every stage run's `notes.parquet` in the bucket |
 | `soldera-ingest` job | one task, never retried, an hour at most, as `soldera-ingest@` |
-| `soldera-ingest-weekly` | Cloud Scheduler, Thursdays 07:00 Paris time, the morning after EEX's auction day |
+| `soldera-ingest-weekly` | Cloud Scheduler in europe-west1 (it has no europe-north1), Thursdays 07:00 Paris time, the morning after EEX's auction day |
 | `soldera-deploy@` | what this repository's workflows act as: push the image, update and run the job, through the custom role `solderaJobDeployer` on that job only |
 
 Workflows:
