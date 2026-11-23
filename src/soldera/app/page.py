@@ -11,11 +11,16 @@ gs://BUCKET read over its API), and looks for a newer one every ten minutes."""
 
 from __future__ import annotations
 
+import json
+import math
 import os
 from datetime import date
+from functools import cache
+from pathlib import Path
 
 import plotly.graph_objects as go
 import streamlit as st
+from plotly.colors import sample_colorscale
 from plotly.subplots import make_subplots
 
 from soldera.app import data
@@ -313,6 +318,107 @@ def over_time_tab(filters: data.Filters, selected: list[data.Segment]) -> None:
     summary_table(selected, weighted)
 
 
+# France's regions, simplified from France GeoJSON (gregoiredavid/france-geojson,
+# from IGN's Admin Express, Licence Ouverte), each named by its ISO code as
+# EEX's regions are. Corsica is in it, though EEX auctions none of its power.
+REGIONS_GEOJSON = Path(__file__).with_name("france-regions.geojson")
+MAP_MEASURES = {
+    "mean": ("Mean price", "€/MWh"), "median": ("Median price", "€/MWh"),
+    "min": ("Lowest price", "€/MWh"), "max": ("Highest price", "€/MWh"), "mwh_sold": ("Volume sold", "MWh"),
+}
+# One hue, light to dark, for a magnitude: Sustenaut's greens on each theme.
+MAP_SCALES = {"light": [[0, "#eef2e2"], [0.5, "#7fae6a"], [1, "#1f5a2e"]],
+              "dark": [[0, "#2e3523"], [0.5, "#5f8f3f"], [1, "#b9e27a"]]}
+
+
+@cache
+def region_outlines() -> dict[str, tuple[list, list]]:
+    """Each region's outline as x and y to draw: longitude narrowed by the
+    cosine of France's middle latitude, so the map keeps its shape on plain
+    axes (Plotly's own maps fetch a world map from its CDN, which a page
+    should not need), its rings apart by a None."""
+    features = json.loads(REGIONS_GEOJSON.read_text(encoding="utf-8"))["features"]
+    narrow = math.cos(math.radians(46.5))
+    outlines = {}
+    for feature in features:
+        geometry = feature["geometry"]
+        polygons = [geometry["coordinates"]] if geometry["type"] == "Polygon" else geometry["coordinates"]
+        x: list[float | None] = []
+        y: list[float | None] = []
+        for ring in (ring for polygon in polygons for ring in polygon):
+            x += [lon * narrow for lon, _ in ring] + [None]
+            y += [lat for _, lat in ring] + [None]
+        outlines[feature["id"]] = (x, y)
+    return outlines
+
+
+def map_tab(filters: data.Filters, selected: list[data.Segment]) -> None:
+    left, right = st.columns([2, 1])
+    measure = left.radio("Colour by", list(MAP_MEASURES), horizontal=True, key="map_measure",
+                         format_func=lambda m: MAP_MEASURES[m][0],
+                         help="A region's prices are of its segments across every auction kept.")
+    weighted = right.toggle("Weight by MWh sold", value=True, key="map_weighted",
+                            help="Weighted, the mean is the price the region's volume sold at, and the "
+                                 "median is of MWh. Unweighted, each auction's segment counts once.")
+    rows = data.by_region(selected, weighted)
+    shown = [r for r in rows if r[measure] is not None]
+    if not shown:
+        st.info("No segment sold anything with these filters.")
+        return
+    name, unit = MAP_MEASURES[measure]
+    st.markdown(
+        f"**{name} by region.** {describe(filters, selected)} Each region is coloured by the {name.lower()} "
+        "of its segments across the auctions kept"
+        + ((", weighted by the MWh each sold." if weighted else ", each counted once.") if measure in ("mean", "median")
+           else ".")
+        + " The colour scale is shared, so the maps compare. EEX auctions no power from Corsica, which is left grey.")
+
+    technologies = [t for t in data.ORDER if any(r["technology"] == t for r in shown)]
+    columns = 1 if len(technologies) == 1 else 2
+    rows_needed = -(-len(technologies) // columns)
+    figure = make_subplots(rows=rows_needed, cols=columns, subplot_titles=[data.LABELS[t] for t in technologies],
+                           horizontal_spacing=0.03, vertical_spacing=0.06)
+    colours = inks()
+    scale = MAP_SCALES["dark" if colours is INKS["dark"] else "light"]
+    low, high = min(r[measure] for r in shown), max(r[measure] for r in shown)
+    for index, technology in enumerate(technologies):
+        place = dict(row=index // columns + 1, col=index % columns + 1)
+        mine = {r["region"]: r for r in shown if r["technology"] == technology}
+        for region, (x, y) in region_outlines().items():
+            row = mine.get(region)
+            share = 0.5 if high == low or row is None else (row[measure] - low) / (high - low)
+            figure.add_trace(go.Scatter(
+                x=x, y=y, mode="lines", fill="toself", hoveron="fills", showlegend=False,
+                fillcolor=sample_colorscale(scale, share)[0] if row else colours["grid"],
+                line=dict(color=colours["surface"], width=1),
+                text=region_hover(row, technology) if row else f"<b>{region_name(region)}</b>: nothing kept",
+                hoverinfo="text"), **place)
+    # The colour scale's key: one invisible point carries it.
+    figure.add_trace(go.Scatter(x=[None], y=[None], mode="markers", showlegend=False, hoverinfo="skip", marker=dict(
+        color=[low], cmin=low, cmax=high, colorscale=scale, showscale=True,
+        colorbar=dict(title=dict(text=unit, font=dict(color=colours["muted"], size=12)), thickness=12, len=0.6))))
+    figure.update_xaxes(visible=False)
+    figure.update_yaxes(visible=False)
+    for index in range(len(technologies)):  # France in its own proportions, in every panel
+        suffix = "" if index == 0 else str(index + 1)
+        figure.update_layout({f"yaxis{suffix}": dict(scaleanchor=f"x{suffix}", scaleratio=1)})
+    st.plotly_chart(style(figure, 400 * rows_needed + 40), width="stretch", config={"displaylogo": False})
+    st.dataframe(
+        [{"Region": region_name(r["region"]), "Technology": data.LABELS[r["technology"]], "Auctions": r["auctions"],
+          "Priced segments": r["segments"], "Sold nothing": r["unsold_segments"], "Sold": mwh(r["mwh_sold"]),
+          "Lowest": euro(r["min"]), "Median": euro(r["median"]), "Mean": euro(r["mean"]), "Highest": euro(r["max"])}
+         for r in rows], hide_index=True, width="stretch")
+
+
+def region_hover(row: dict, technology: str) -> str:
+    return "<br>".join([
+        f"<b>{region_name(row['region'])}</b>, {data.LABELS[technology].lower()}",
+        f"{row['auctions']} auctions, {row['segments']} priced segments, {mwh(row['mwh_sold'])} sold",
+        f"mean {euro(row['mean'])}, median {euro(row['median'])}",
+        f"lowest {euro(row['min'])}, highest {euro(row['max'])}",
+    ])
+
+
 def hover_text(point: dict) -> str:
     number = f" (no. {point['auction_number']})" if point["auction_number"] is not None else ""
     lines = [
@@ -394,8 +500,10 @@ def main() -> None:
     if not filters.technologies or not selected:
         st.info("No auction matches these filters.")
         return
-    distribution, over_time = st.tabs(["Price distribution", "Prices over time"])
+    distribution, over_time, by_region = st.tabs(["Price distribution", "Prices over time", "By region"])
     with distribution:
         distribution_tab(filters, selected)
     with over_time:
         over_time_tab(filters, selected)
+    with by_region:
+        map_tab(filters, selected)

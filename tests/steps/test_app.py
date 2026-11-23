@@ -121,6 +121,16 @@ def points_unweighted(app, date_by):
     app["rows"] = data.over_time(app["segments"], date_by, weighted=False)
 
 
+@when("the regions' statistics are made, weighted by MWh")
+def make_regions(app):
+    app["rows"] = data.by_region(app["segments"], weighted=True)
+
+
+@then("the regions' statistics are:")
+def regions_are(app, datatable):
+    compare([{**r, "mwh_sold": int(r["mwh_sold"])} for r in app["rows"]], datatable)
+
+
 @then("the points are:")
 def points_are(app, datatable):
     compare([{**p, "auction": p["auction_id"]} for p in app["rows"]], datatable)

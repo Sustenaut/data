@@ -321,6 +321,27 @@ def summary(selected: list[Segment], weighted: bool) -> list[dict[str, Any]]:
     return rows
 
 
+def by_region(selected: list[Segment], weighted: bool) -> list[dict[str, Any]]:
+    """One row per region and technology: the statistics of its segments'
+    prices across the auctions kept, and what they sold."""
+    groups: dict[tuple[str, str], list[Segment]] = {}
+    for s in selected:
+        groups.setdefault((s.region, s.technology), []).append(s)
+    rows = []
+    for (region, technology), mine in sorted(groups.items(), key=lambda g: (ORDER.index(g[0][1]), g[0][0])):
+        priced = [s for s in mine if s.price is not None]
+        rows.append({
+            "region": region,
+            "technology": technology,
+            "auctions": len({s.auction_id for s in mine}),
+            "segments": len(priced),
+            "unsold_segments": len(mine) - len(priced),
+            "mwh_sold": sum(s.sold_mwh for s in mine),
+            **statistics(priced, weighted),
+        })
+    return rows
+
+
 def over_time(selected: list[Segment], date_by: str, weighted: bool) -> list[dict[str, Any]]:
     """One point per auction and technology: the statistics of its regions'
     prices, by auction date or production month."""
