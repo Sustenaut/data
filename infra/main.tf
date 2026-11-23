@@ -1,0 +1,252 @@
+# The ingest job of data.sustenaut.eu/power-auctions: soldera's image, the
+# bucket its store lives in, the BigQuery run log, the Cloud Run job, a weekly
+# schedule, and an account only this repository's workflows can act as, which
+# deploys the image and starts the job and does nothing else.
+#
+# The project and region are pubrules.json's (hosting.providers.gcp). The
+# project's APIs and the Workload Identity Federation pool are the base
+# stack's, found here by their fixed names; this stack never reads its state.
+
+locals {
+  gcp        = jsondecode(file("${path.module}/../pubrules.json")).hosting.providers["gcp"]
+  project    = local.gcp.project
+  region     = local.gcp.region
+  repository = "Sustenaut/soldera"
+  image      = "${local.region}-docker.pkg.dev/${local.project}/${google_artifact_registry_repository.soldera.repository_id}/ingest"
+  run_log    = "${local.project}.${google_bigquery_dataset.soldera.dataset_id}.${google_bigquery_table.pipeline_stage_runs.table_id}"
+}
+
+data "google_project" "this" {
+  project_id = local.project
+}
+
+# --- The image ----------------------------------------------------------------
+
+resource "google_artifact_registry_repository" "soldera" {
+  location      = local.region
+  repository_id = "soldera"
+  format        = "DOCKER"
+  description   = "soldera's ingest image, pushed by GitHub Actions in ${local.repository}."
+
+  cleanup_policies {
+    id     = "keep-recent"
+    action = "KEEP"
+    most_recent_versions {
+      keep_count = 10
+    }
+  }
+  cleanup_policies {
+    id     = "delete-old"
+    action = "DELETE"
+    condition {
+      older_than = "2592000s" # 30 days, for anything beyond the ten kept above
+    }
+  }
+}
+
+# --- The store ----------------------------------------------------------------
+
+# Every stage's outputs, manifests and notes, mounted in the job at /store.
+# Objects are written once by their content hash, so nothing here expires.
+resource "google_storage_bucket" "store" {
+  name                        = "${local.project}-soldera-store"
+  location                    = local.region
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+  force_destroy               = false
+
+  soft_delete_policy {
+    retention_duration_seconds = 604800 # 7 days
+  }
+}
+
+# --- The run log --------------------------------------------------------------
+
+resource "google_bigquery_dataset" "soldera" {
+  dataset_id  = "soldera"
+  location    = local.region
+  description = "soldera's ingest runs: one row per stage per run, and each stage run's notes."
+}
+
+# Rows are only appended; a stage's newest row in a run is its state.
+resource "google_bigquery_table" "pipeline_stage_runs" {
+  dataset_id          = google_bigquery_dataset.soldera.dataset_id
+  table_id            = "pipeline_stage_runs"
+  description         = "One row when a stage starts and one when it ends, written by soldera run."
+  schema              = file("${path.module}/../src/soldera/core/schemas/pipeline_stage_runs.json")
+  deletion_protection = true
+
+  time_partitioning {
+    type  = "MONTH"
+    field = "logged_at"
+  }
+  clustering = ["pipeline", "stage_name"]
+}
+
+# Every stage run's notes.parquet, as written, never copied: the store holds
+# no other file named *notes.parquet (outputs are stored by hash, unnamed).
+resource "google_bigquery_table" "stage_notes" {
+  dataset_id          = google_bigquery_dataset.soldera.dataset_id
+  table_id            = "stage_notes"
+  description         = "The notes each stage run wrote, read from its notes.parquet in the store."
+  deletion_protection = true
+
+  external_data_configuration {
+    autodetect    = true
+    source_format = "PARQUET"
+    source_uris   = ["gs://${google_storage_bucket.store.name}/*notes.parquet"]
+  }
+}
+
+# --- The job ------------------------------------------------------------------
+
+resource "google_service_account" "ingest" {
+  account_id   = "soldera-ingest"
+  display_name = "soldera ingest"
+  description  = "The soldera-ingest Cloud Run job: reads and writes its store bucket, appends to its run log."
+}
+
+resource "google_storage_bucket_iam_member" "ingest_store" {
+  bucket = google_storage_bucket.store.name
+  role   = "roles/storage.objectAdmin"
+  member = google_service_account.ingest.member
+}
+
+resource "google_bigquery_table_iam_member" "ingest_run_log" {
+  dataset_id = google_bigquery_dataset.soldera.dataset_id
+  table_id   = google_bigquery_table.pipeline_stage_runs.table_id
+  role       = "roles/bigquery.dataEditor"
+  member     = google_service_account.ingest.member
+}
+
+# One task, never retried: a failed run fails loudly and waits for a person,
+# who re-runs it from the ingest workflow.
+resource "google_cloud_run_v2_job" "ingest" {
+  name                = "soldera-ingest"
+  location            = local.region
+  deletion_protection = true
+
+  template {
+    task_count  = 1
+    parallelism = 1
+
+    template {
+      service_account       = google_service_account.ingest.email
+      timeout               = "3600s"
+      max_retries           = 0
+      execution_environment = "EXECUTION_ENVIRONMENT_GEN2"
+
+      containers {
+        # The first deploy replaces this; Terraform leaves the image alone after.
+        image = "us-docker.pkg.dev/cloudrun/container/job"
+
+        env {
+          name  = "SOLDERA_STORE"
+          value = "/store"
+        }
+        env {
+          name  = "SOLDERA_STORE_URI"
+          value = "gs://${google_storage_bucket.store.name}"
+        }
+        env {
+          name  = "SOLDERA_RUN_LOG"
+          value = "bigquery:${local.run_log}"
+        }
+
+        resources {
+          limits = {
+            cpu    = "2"
+            memory = "2Gi"
+          }
+        }
+
+        volume_mounts {
+          name       = "store"
+          mount_path = "/store"
+        }
+      }
+
+      volumes {
+        name = "store"
+        gcs {
+          bucket    = google_storage_bucket.store.name
+          read_only = false
+        }
+      }
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [template[0].template[0].containers[0].image, client, client_version]
+  }
+}
+
+# --- The schedule -------------------------------------------------------------
+
+resource "google_service_account" "scheduler" {
+  account_id   = "soldera-scheduler"
+  display_name = "soldera scheduler"
+  description  = "Cloud Scheduler: starts the soldera-ingest job, and nothing else."
+}
+
+resource "google_cloud_run_v2_job_iam_member" "scheduler_runs_ingest" {
+  name     = google_cloud_run_v2_job.ingest.name
+  location = local.region
+  role     = "roles/run.invoker"
+  member   = google_service_account.scheduler.member
+}
+
+# EEX holds each month's auction on a Wednesday and publishes its results
+# the same day; Thursday morning finds them.
+resource "google_cloud_scheduler_job" "ingest_weekly" {
+  name        = "soldera-ingest-weekly"
+  region      = local.region
+  description = "Runs soldera-ingest every Thursday morning."
+  schedule    = "0 7 * * 4"
+  time_zone   = "Europe/Paris"
+
+  http_target {
+    http_method = "POST"
+    uri         = "https://run.googleapis.com/v2/projects/${local.project}/locations/${local.region}/jobs/${google_cloud_run_v2_job.ingest.name}:run"
+
+    oauth_token {
+      service_account_email = google_service_account.scheduler.email
+    }
+  }
+}
+
+# --- Deploys and re-runs from GitHub Actions, without keys ----------------------
+
+resource "google_service_account" "deploy" {
+  account_id   = "soldera-deploy"
+  display_name = "soldera deploy"
+  description  = "GitHub Actions in ${local.repository}: pushes the ingest image, deploys it to soldera-ingest, and starts the job."
+}
+
+resource "google_service_account_iam_member" "deploy_from_github" {
+  service_account_id = google_service_account.deploy.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/${var.workload_identity_pool}/attribute.repository/${local.repository}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "deploy_push" {
+  location   = local.region
+  repository = google_artifact_registry_repository.soldera.name
+  role       = "roles/artifactregistry.writer"
+  member     = google_service_account.deploy.member
+}
+
+# Updating the job's image, and running it with other arguments.
+resource "google_cloud_run_v2_job_iam_member" "deploy" {
+  name     = google_cloud_run_v2_job.ingest.name
+  location = local.region
+  role     = "roles/run.developer"
+  member   = google_service_account.deploy.member
+}
+
+# A job that runs as the ingest account is deployed by one that may act as it.
+resource "google_service_account_iam_member" "deploy_acts_as_ingest" {
+  service_account_id = google_service_account.ingest.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = google_service_account.deploy.member
+}

@@ -2,8 +2,10 @@
 `02-download/eex-french-auction-download@1.0.0/objects/ab/ab12…`. Every write is atomic:
 a reader sees the whole object or none of it.
 
-LocalStorage keeps them under a directory; a GCS store with the same methods
-comes with the deploy."""
+LocalStorage keeps them under a directory. In the Cloud Run job that
+directory is a Cloud Storage bucket, mounted with Cloud Storage FUSE, and
+`uri_base` (gs://BUCKET) makes the run log name each object by its gs:// URI,
+which BigQuery's stage_notes table reads."""
 
 from __future__ import annotations
 
@@ -26,8 +28,9 @@ class Stored:
 
 
 class LocalStorage:
-    def __init__(self, root: str | Path):
+    def __init__(self, root: str | Path, uri_base: str | None = None):
         self.root = Path(root).resolve()
+        self.uri_base = uri_base.rstrip("/") if uri_base else None
 
     def _path(self, key: str) -> Path:
         path = (self.root / key).resolve()
@@ -40,7 +43,10 @@ class LocalStorage:
         return self._path(key)
 
     def uri(self, key: str) -> str:
-        return self._path(key).as_uri()
+        path = self._path(key)
+        if self.uri_base:
+            return f"{self.uri_base}/{path.relative_to(self.root).as_posix()}"
+        return path.as_uri()
 
     def exists(self, key: str) -> bool:
         return self._path(key).is_file()

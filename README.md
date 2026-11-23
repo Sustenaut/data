@@ -107,6 +107,44 @@ every rule against its excerpt (the tests run it too):
 bin/soldera corrections check corrections/eex-french-power-auctions.yaml
 ```
 
+## Deploying
+
+The ingest runs as the Cloud Run job `soldera-ingest`, in the `sustenaut`
+project (`pubrules.json`, `hosting.providers.gcp`). `infra/` makes it and
+everything around it:
+
+| Resource | What it is for |
+| --- | --- |
+| `soldera` registry | the ingest image (`Dockerfile`), the ten newest kept |
+| `sustenaut-soldera-store` bucket | the store, mounted in the job at `/store` |
+| `soldera.pipeline_stage_runs` | the run log, schema `src/soldera/core/schemas/pipeline_stage_runs.json` |
+| `soldera.stage_notes` | an external table over every stage run's `notes.parquet` in the bucket |
+| `soldera-ingest` job | one task, never retried, an hour at most, as `soldera-ingest@` |
+| `soldera-ingest-weekly` | Cloud Scheduler, Thursdays 07:00 Paris time, the morning after EEX's auction day |
+| `soldera-deploy@` | what this repository's workflows act as: push the image, update and run the job |
+
+Workflows:
+
+- **terraform** applies `infra/` from main with pubhost's `terraform.yml`
+  once the repository variable `TERRAFORM_CI` is `on`.
+- **deploy** builds the image on each change to main that touches it, checks
+  that it starts, pushes it and points the job at it, once `DEPLOY_CI` is `on`.
+- **ingest** (Actions, ingest, Run workflow) runs the job now with `from`,
+  `to` and `force`, and fails when the job does. The run log rows link back
+  to the workflow run.
+
+To turn it on: the base stack's pool must admit `Sustenaut/soldera` and make
+its Terraform account; set the repository variables
+`GCP_WORKLOAD_IDENTITY_PROVIDER` and `TERRAFORM_SERVICE_ACCOUNT`, make the
+environments `terraform` and `deploy` limited to main, and set
+`TERRAFORM_CI=on`. After the first apply, set `GCP_DEPLOY_SERVICE_ACCOUNT` to
+the `deploy_service_account` output and `DEPLOY_CI=on`. The project needs the
+Run, Artifact Registry, BigQuery, Cloud Scheduler and Storage APIs, which
+are the base stack's.
+
+`make lock` also writes `requirements.lock`, the image's packages at the
+suite's versions, with hashes.
+
 ## How a stage runs
 
 `src/soldera/core/runner.py` is the runner. For each stage it asks the parser

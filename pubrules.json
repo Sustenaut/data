@@ -10,7 +10,20 @@
     "with": {
       "setup": "make venv",
       "test": "make functional",
-      "shellcheck": "bin/soldera"
+      "shellcheck": "bin/soldera",
+      "terraform-dir": "infra"
+    }
+  },
+  "hosting": {
+    "providers": {
+      "gcp": {
+        "type": "google-cloud",
+        "project": "sustenaut",
+        "region": "europe-north1",
+        "cloud_run": {
+          "domain_target": "ghs.googlehosted.com."
+        }
+      }
     }
   }
 }

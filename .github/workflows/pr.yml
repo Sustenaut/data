@@ -27,6 +27,13 @@ jobs:
     uses: Sustenaut/pubrules/.github/workflows/job-service-checks.yml@cc8eaf673afb86eb78fa9808e5028ae7f6fa187c # v0.48.0
     with: {"shellcheck": "bin/soldera", "runs-on": "sustenaut-ci"}
 
+  terraform:
+    name: ci
+    needs: [tested]
+    if: ${{ needs.tested.outputs.tested != 'true' }}
+    uses: Sustenaut/pubrules/.github/workflows/job-service-terraform.yml@cc8eaf673afb86eb78fa9808e5028ae7f6fa187c # v0.48.0
+    with: {"terraform-dir": "infra", "runs-on": "sustenaut-ci"}
+
   tests:
     name: ci
     needs: [tested]
@@ -49,7 +56,7 @@ jobs:
   passed:
     name: ci / passed
     if: always()
-    needs: [tested, checks, tests, sonar]
+    needs: [tested, checks, terraform, tests, sonar]
     runs-on: sustenaut-ci
     steps:
       - run: |
