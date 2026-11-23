@@ -9,8 +9,8 @@
 # image and points the service's app container at it; shared-infra maps
 # data.sustenaut.eu to the service.
 #
-# The service needs both secrets to hold a value, and both images to be in
-# the registry, before it can start. So it waits for var.serve_app, which a
+# The service needs both secrets to hold a value (from Bitwarden, below), and
+# both images to be in the registry, before it can start. So it waits for var.serve_app, which a
 # pull request sets once a person has added the values and the deploy
 # workflow has pushed the images (README, "Deploying the app").
 
@@ -32,8 +32,11 @@ resource "google_storage_bucket_iam_member" "app_reads_store" {
   member = data.google_service_account.app.member
 }
 
-# Only the secrets' names are here. A person adds their values (README), so
-# no value is in git, the plan or the state.
+# The values are kept in the Bitwarden Secrets Manager project soldera,
+# under these names. The terraform workflow runs through ./pubsec run, which
+# reads them (with-secrets.json lists this file) and hands them over as the
+# ephemeral var.secret_values; each goes to Secret Manager through a
+# write-only argument, so no value is in git, the plan or the state.
 resource "google_secret_manager_secret" "app_sign_in" {
   for_each = {
     "soldera-oidc-client-secret" = "Secret of sustenaut.eu's team client, which soldera-app's oauth2-proxy signs in with."
@@ -51,6 +54,17 @@ resource "google_secret_manager_secret" "app_sign_in" {
       }
     }
   }
+}
+
+# A value changed in Bitwarden has a new revision, which adds a version here;
+# the one it replaces is disabled, not destroyed, so it can be switched back.
+resource "google_secret_manager_secret_version" "app_sign_in" {
+  for_each = { for name, revision in var.secret_revisions : name => revision if contains(keys(google_secret_manager_secret.app_sign_in), name) }
+
+  secret                 = google_secret_manager_secret.app_sign_in[each.key].id
+  secret_data_wo         = var.secret_values[each.key]
+  secret_data_wo_version = each.value
+  deletion_policy        = "DISABLE"
 }
 
 resource "google_secret_manager_secret_iam_member" "app_reads_sign_in" {
@@ -179,7 +193,8 @@ resource "google_cloud_run_v2_service" "app" {
     ignore_changes = [template[0].containers[1].image, client, client_version]
   }
 
-  depends_on = [google_secret_manager_secret_iam_member.app_reads_sign_in, google_storage_bucket_iam_member.app_reads_store]
+  depends_on = [google_secret_manager_secret_iam_member.app_reads_sign_in, google_secret_manager_secret_version.app_sign_in,
+  google_storage_bucket_iam_member.app_reads_store]
 }
 
 # Anyone may reach the service: oauth2-proxy, its front container, decides

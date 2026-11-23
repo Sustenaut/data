@@ -205,16 +205,17 @@ waits for `serve_app`. Once, in order:
 1. shared-infra makes the account `soldera-app` and the role
    `solderaServiceDeployer`, and lets this stack make `soldera-*` services
    and secrets. After this stack's next apply, the secrets exist, empty.
-2. Put their values in: the team client's secret, which the planning app's
-   secret already holds, and a new cookie key.
-
-   ```sh
-   gcloud secrets versions access latest --secret=plan-oidc-client-secret |
-     gcloud secrets versions add soldera-oidc-client-secret --data-file=-
-   openssl rand -base64 32 | tr -d '\n' | tr -- '+/' '-_' |
-     gcloud secrets versions add soldera-cookie-secret --data-file=-
-   ```
-
+2. Put their values in the Bitwarden Secrets Manager project `soldera`,
+   under the same names: the `sustenaut.eu` team client's secret as
+   `soldera-oidc-client-secret`, and a new cookie key as
+   `soldera-cookie-secret` (`openssl rand -base64 32 | tr -d '\n' | tr --
+   '+/' '-_'`). Give the `terraform` environment the secret
+   `BWS_ACCESS_TOKEN`, a read-only machine account's token for that
+   project: the terraform workflow runs through `./pubsec run`, which hands
+   the values to Terraform as an ephemeral variable, and Terraform writes
+   each as a Secret Manager version through a write-only argument. A value
+   changed in Bitwarden becomes a new version at the next apply. On a
+   laptop, `./with-secrets terraform -chdir=infra plan` does the same.
 3. Register the site on the team client, as business-plan's
    `planning/go-live.sh` did for plan: Sustenaut/auth's `register-app.py`
    with `--redirect https://data.sustenaut.eu/oauth2/callback --logout
