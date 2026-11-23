@@ -23,3 +23,5 @@ jobs:
       # The sign-in secrets' values, from Bitwarden (infra/app.tf), with the
       # terraform environment's BWS_ACCESS_TOKEN.
       secrets: true
+    # Passes the environment's BWS_ACCESS_TOKEN to pubhost's workflow.
+    secrets: inherit
