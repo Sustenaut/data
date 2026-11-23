@@ -72,15 +72,40 @@ class ItemResult:
 
 
 class StageContext:
-    """What a parser may use: the stage's options and read access to inputs."""
+    """What a parser may use: the stage's options, read access to inputs, and
+    the run it is part of.
 
-    def __init__(self, storage: LocalStorage, options: dict[str, Any], stage: str):
+    `earlier_notes` are the notes.parquet files of every stage before this
+    one, from the very runs whose output this stage reads, as artifacts: a
+    stage that publishes the notes (a merge into the app's database) copies
+    them, so they say the same everywhere."""
+
+    def __init__(self, storage: LocalStorage, options: dict[str, Any], stage: str, *, run_id: str = "",
+                 pipeline: str = "", parser: type[Parser] | None = None,
+                 earlier_notes: tuple[Artifact, ...] = ()):
         self._storage = storage
         self.options = options
         self.stage = stage
+        self.run_id = run_id
+        self.pipeline = pipeline
+        self.parser = parser
+        self.earlier_notes = earlier_notes
 
     def read(self, artifact: Artifact) -> bytes:
         return self._storage.get_bytes(artifact.key)
+
+    def note_records(self, notes: list[Note], item: WorkItem, run_id: str | None = None) -> list[dict[str, Any]]:
+        """The notes as the runner stores them for this item, so a parser
+        that also publishes its own notes writes the very same rows."""
+        from soldera.core import notes as notes_mod  # noqa: PLC0415 - notes imports this module
+
+        source = item.inputs[0] if item.inputs else None
+        return [notes_mod.record(
+            n, run_id=run_id or self.run_id, pipeline=self.pipeline, stage=self.stage,
+            parser_name=self.parser.name if self.parser else "",
+            parser_version=self.parser.version if self.parser else "", item_key=item.key,
+            source_key=source.key if source else "", source_sha256=source.sha256 if source else "")
+            for n in notes]
 
 
 class Parser:

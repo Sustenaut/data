@@ -141,6 +141,17 @@ class Runner:
                      if item["status"] in ("built", "cached") for o in item["outputs"]]
         return artifacts, latest
 
+    def earlier_notes(self, latest: dict[str, Any] | None) -> tuple[Artifact, ...]:
+        """The notes of each stage before, following the runs this one reads."""
+        found = []
+        while latest:
+            manifest = self.storage.get_json(latest["manifest"])
+            data = self.storage.get_bytes(latest["notes"])
+            found.append(Artifact(latest["notes"], hashlib.sha256(data).hexdigest(), len(data),
+                                  f"{manifest['stage']}/notes.parquet", "application/vnd.apache.parquet"))
+            latest = manifest.get("upstream")
+        return tuple(reversed(found))
+
     def row(self, stage: Stage, context: dict[str, Any], **values: Any) -> dict[str, Any]:
         row = {
             "run_id": context["run_id"], "pipeline": self.pipeline.name,
@@ -162,9 +173,10 @@ class Runner:
         started = now()
         self.runlog.write(self.row(stage, context, status="running", started_at=started, finished_at=None))
         parser = stage.parser()
-        ctx = StageContext(self.storage, stage.options, stage.name)
         try:
             upstream, upstream_latest = self.upstream(stage)
+            ctx = StageContext(self.storage, stage.options, stage.name, run_id=run_id, pipeline=self.pipeline.name,
+                               parser=stage.parser, earlier_notes=self.earlier_notes(upstream_latest))
             items = parser.plan(upstream, ctx)
         except Exception as error:  # noqa: BLE001 - any planning failure fails the stage, with its reason logged
             outcome = StageOutcome(stage, "failed", error=f"{type(error).__name__}: {error}")
@@ -224,12 +236,7 @@ class Runner:
                     outputs.append(Artifact(stored.key, stored.sha256, stored.size, output.name,
                                             output.media_type, item.key).to_dict())
                     rows += output.rows or 0
-                source = item.inputs[0] if item.inputs else None
-                item_notes = [notes_mod.record(
-                    n, run_id=run_id, pipeline=self.pipeline.name, stage=stage.name,
-                    parser_name=stage.parser.name, parser_version=stage.parser.version, item_key=item.key,
-                    source_key=source.key if source else "", source_sha256=source.sha256 if source else "")
-                    for n in result.notes]
+                item_notes = ctx.note_records(result.notes, item, run_id)
                 record = {"item_key": item.key, "run_id": run_id, "created_at": now(), "outputs": outputs,
                           "notes": item_notes, "rows_out": rows, "inputs": entry["inputs"]}
                 self.storage.put_json(f"{base}/item.json", record)

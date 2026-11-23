@@ -19,7 +19,8 @@ from pubtest.core import dig, same
 from pubtest.plugin import run_program
 from pytest_bdd import given, parsers, scenarios, then
 
-scenarios("runner.feature", "run_log.feature", "discover.feature", "download.feature", "select.feature", "parse.feature")
+scenarios("runner.feature", "run_log.feature", "discover.feature", "download.feature", "select.feature", "parse.feature",
+          "merge.feature")
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 
@@ -370,3 +371,19 @@ def same_note_ids(ctx, stage, first, second):
     two = [n["note_id"] for n in stage_notes(ctx, stage, second)]
     assert one and one == two, f"{first}: {one}, {second}: {two}"
 
+
+
+@then(parsers.parse('the database of "{stage}" answers "{sql}" with:'))
+def database_answers(ctx, stage, sql, datatable):
+    import duckdb  # noqa: PLC0415
+
+    [item] = latest_manifest(ctx, stage)["items"]
+    [output] = item["outputs"]
+    with duckdb.connect(str(scratch(ctx) / "store" / output["key"]), read_only=True) as con:
+        result = con.execute(sql)
+        columns = [d[0] for d in result.description]
+        actual = [[("" if v is None else str(v)) for v in row] for row in result.fetchall()]
+    header, *body = datatable
+    assert [h.strip() for h in header] == columns, f"the columns are {columns}"
+    wanted = [[c.strip() for c in line] for line in body]
+    assert actual == wanted, "the rows are:\n" + "\n".join(" | ".join(r) for r in actual)
