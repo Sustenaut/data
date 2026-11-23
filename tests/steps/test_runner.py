@@ -12,6 +12,7 @@ import re
 import shlex
 import shutil
 from pathlib import Path
+from urllib.parse import quote
 
 import pyarrow.parquet as pq
 import pytest
@@ -105,6 +106,20 @@ class Raw(str):
 
     def encode(self, *args, **kwargs) -> bytes:  # noqa: ARG002 - the bytes are already made
         return self.data
+
+
+@given(parsers.parse('the "{name}" service serves the store as the bucket "{bucket}"'))
+def serves_store(ctx, pubtest_ctx, monkeypatch, name, bucket):
+    """Every object in the scratch store, as Cloud Storage's JSON API gives
+    it: GET /storage/v1/b/BUCKET/o/KEY?alt=media, the key quoted whole."""
+    from pubtest.steps.fakes import fake  # noqa: PLC0415
+
+    service = fake(pubtest_ctx, monkeypatch, name)
+    store = scratch(ctx) / "store"
+    for path in sorted(p for p in store.rglob("*") if p.is_file()):
+        key = quote(path.relative_to(store).as_posix(), safe="")
+        service.answer(f"GET /storage/v1/b/{bucket}/o/{key}?alt=media", 200, Raw(path.read_bytes()),
+                       {"Content-Type": "application/octet-stream"})
 
 
 @given(parsers.parse('the "{name}" service answers "{request}" with a zip holding:'))

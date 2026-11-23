@@ -137,6 +137,43 @@ Feature: Stage 5, merge: every parsed file into the app's DuckDB
     And it prints a line matching "power-auctions.duckdb: power-auctions.duckdb from run *, sha256 *"
     And the file "power-auctions.duckdb" exists
 
+  Scenario: The newest database can be copied from the store's bucket, as the app reads it
+    Given the "eex" service answers "GET /en/markets/energy-certificates/french-auctions-power" with 200 and:
+      """
+      <h2>Guarantees of Origin Data</h2>
+      <a href="/fileadmin/GO/20210818_May_2021_27_Global_Results_detailedresults.csv">file</a>
+      """
+    And the "eex" service answers "GET /fileadmin/GO/20210818_May_2021_27_Global_Results_detailedresults.csv" with a full results csv for 28 participants, where:
+      | region | technology | offered | sold | price | winners |
+    And I ran "soldera run pipeline.yaml"
+    And the "metadata" service is the metadata server of a job, giving the token "t0ken"
+    And the "storage" service serves the store as the bucket "soldera-store"
+    When I run "soldera output pipeline.yaml merge --store gs://soldera-store"
+    Then it succeeds
+    And it prints a line matching "gs://soldera-store/05-merge/auction-results-duckdb@1.0.0/objects/*"
+    When I run "soldera output pipeline.yaml merge --store gs://soldera-store --copy-to power-auctions.duckdb"
+    Then it succeeds
+    And it prints a line matching "power-auctions.duckdb: power-auctions.duckdb from run *, sha256 *"
+    And the file "power-auctions.duckdb" exists
+    And the "storage" service was asked "GET /storage/v1/b/soldera-store/o/05-merge%2Fauction-results-duckdb%401.0.0%2Flatest.json" with the header "Authorization" set to "Bearer t0ken"
+
+  Scenario: A bucket with nothing published, or that refuses to be read, says so
+    Given the "metadata" service is the metadata server of a job, giving the token "t0ken"
+    And the "storage" service answers "GET /storage/v1/b/empty-store/o/05-merge%2Fauction-results-duckdb%401.0.0%2Flatest.json" with 404
+    And the "storage" service answers "GET /storage/v1/b/closed-store/o/05-merge%2Fauction-results-duckdb%401.0.0%2Flatest.json" with 403 and:
+      """
+      {"error": {"code": 403, "message": "soldera-app does not have storage.objects.get access"}}
+      """
+    When I run "soldera output pipeline.yaml merge --store gs://empty-store"
+    Then the exit code is 2
+    And stderr mentions "stage merge (auction-results-duckdb@1.0.0) has published nothing in gs://empty-store"
+    When I run "soldera output pipeline.yaml merge --store gs://closed-store"
+    Then the exit code is 2
+    And stderr mentions "cannot read gs://closed-store/05-merge/auction-results-duckdb@1.0.0/latest.json: 403"
+    When I run "soldera output pipeline.yaml merge --store gs://"
+    Then the exit code is 2
+    And stderr mentions "'gs://' is not gs://BUCKET"
+
   Scenario: A stage with several outputs needs the one to copy named
     Given the "eex" service answers "GET /en/markets/energy-certificates/french-auctions-power" with 200 and:
       """

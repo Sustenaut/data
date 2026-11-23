@@ -11,6 +11,13 @@ dependencies = [
   "google-auth>=2.40",
 ]
 
+[project.optional-dependencies]
+# The power-auctions app (src/soldera/app): its image installs these too.
+app = [
+  "streamlit>=1.67",
+  "plotly>=7.1",
+]
+
 [project.scripts]
 soldera = "soldera.cli:main"
 

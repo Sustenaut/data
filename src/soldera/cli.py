@@ -2,11 +2,15 @@
 
     soldera run PIPELINE.yaml [--from STAGE|auto] [--to STAGE] [--force]
                               [--store DIR] [--run-log FILE|bigquery:PROJECT.DATASET.TABLE] [--run-id ID] [--trigger KIND]
-    soldera output PIPELINE.yaml STAGE [--name NAME] [--copy-to FILE] [--store DIR]
+    soldera output PIPELINE.yaml STAGE [--name NAME] [--copy-to FILE] [--store DIR|gs://BUCKET]
     soldera corrections check FILE
+    soldera app [--store DIR|gs://BUCKET] [--database FILE] [--port PORT]
 
 `output` prints where the newest published output of a stage is kept (the
 store files outputs by content hash), or copies it to FILE.
+
+`app` serves the power-auctions app (src/soldera/app) with Streamlit, on the
+newest database the merge stage published in the store, or on FILE.
 
 `corrections check` checks a corrections file's shape and tries each rule on
 the excerpt it keeps of the file it corrects.
@@ -22,7 +26,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import sys
 from pathlib import Path
 
@@ -30,9 +33,17 @@ from soldera import __version__
 from soldera.core import pipeline as pipeline_mod
 from soldera.core.runlog import RunLogError, open_run_log
 from soldera.core.runner import AUTO, RunError, Runner
-from soldera.core.storage import LocalStorage
+from soldera.core.storage import LocalStorage, latest_outputs, open_store
 
 TRIGGERS = ("manual", "schedule", "deploy", "rerun")
+APP_PIPELINE = "pipelines/eex-french-power-auctions.yaml"
+# Streamlit's settings for the app: light, in the plots' ink, and nothing
+# sent to Streamlit.
+APP_SETTINGS = {
+    "server.headless": "true", "server.address": "0.0.0.0", "browser.gatherUsageStats": "false",
+    "server.enableXsrfProtection": "true", "client.toolbarMode": "viewer",
+    "theme.base": "light", "theme.primaryColor": "#2F5D7C", "theme.textColor": "#2b2b2a",
+}
 
 
 def parser() -> argparse.ArgumentParser:
@@ -61,7 +72,18 @@ def parser() -> argparse.ArgumentParser:
     output.add_argument("--name", help="the output's name, when the stage has several")
     output.add_argument("--copy-to", metavar="FILE", help="copy the output to FILE")
     output.add_argument("--store", default=os.environ.get("SOLDERA_STORE", "store"),
-                        help="the directory stage outputs are kept in (SOLDERA_STORE)")
+                        help="the directory stage outputs are kept in, or gs://BUCKET to read the bucket "
+                             "over its API (SOLDERA_STORE)")
+    app = commands.add_parser("app", help="serve the power-auctions app")
+    app.add_argument("--store", default=os.environ.get("SOLDERA_STORE", "store"),
+                     help="the store whose newest merged database it shows: a directory, or gs://BUCKET "
+                          "(SOLDERA_STORE)")
+    app.add_argument("--database", default=os.environ.get("SOLDERA_DATABASE") or None,
+                     help="show this DuckDB file instead (SOLDERA_DATABASE)")
+    app.add_argument("--pipeline", default=os.environ.get("SOLDERA_PIPELINE", APP_PIPELINE),
+                     help="the pipeline whose merge stage made the database (SOLDERA_PIPELINE)")
+    app.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8501")),
+                     help="the port to serve on (PORT, as Cloud Run sets it)")
     fixes = commands.add_parser("corrections", help="work with a corrections file")
     fix_commands = fixes.add_subparsers(dest="action", required=True)
     check = fix_commands.add_parser("check", help="check each rule against the excerpt it keeps")
@@ -88,12 +110,11 @@ def check_corrections(path: str) -> int:
 def show_output(args: argparse.Namespace) -> int:
     pipeline = pipeline_mod.load(args.pipeline)
     stage = pipeline.stage(args.stage)
-    storage = LocalStorage(args.store)
-    latest = storage.get_json_or_none(f"{stage.prefix}/latest.json")
-    if latest is None:
-        raise RunError(f"stage {stage.name} ({stage.parser.ref()}) has published nothing in {args.store}")
-    manifest = storage.get_json(latest["manifest"])
-    outputs = [o for item in manifest["items"] for o in item["outputs"] if args.name in (None, o["name"])]
+    storage = open_store(args.store)
+    try:
+        latest, outputs = latest_outputs(storage, stage.prefix, args.name)
+    except LookupError as error:
+        raise RunError(f"stage {stage.name} ({stage.parser.ref()}) has published nothing in {args.store}") from error
     if not outputs:
         raise RunError(f"stage {stage.name}'s run {latest['run_id']} published no output named {args.name}")
     if args.copy_to:
@@ -101,7 +122,7 @@ def show_output(args: argparse.Namespace) -> int:
             raise RunError(f"stage {stage.name} published {len(outputs)} outputs; name one with --name: "
                            + ", ".join(o["name"] for o in outputs[:10]))
         target = Path(args.copy_to)
-        shutil.copyfile(storage.path(outputs[0]["key"]), target)
+        storage.copy_to(outputs[0]["key"], target)
         print(f"{target}: {outputs[0]['name']} from run {latest['run_id']}, sha256 {outputs[0]['sha256']}")
         return 0
     for o in outputs:
@@ -109,14 +130,28 @@ def show_output(args: argparse.Namespace) -> int:
     return 0
 
 
+def serve_app(args: argparse.Namespace) -> int:
+    """Streamlit, on the app, with the store or database in its environment."""
+    script = Path(__file__).resolve().parent / "app" / "streamlit_app.py"
+    env = {**os.environ, "SOLDERA_STORE": str(args.store), "SOLDERA_PIPELINE": str(args.pipeline)}
+    if args.database:
+        env["SOLDERA_DATABASE"] = str(args.database)
+    settings = {**APP_SETTINGS, "server.port": str(args.port)}
+    argv = [sys.executable, "-m", "streamlit", "run", str(script), *(f"--{k}={v}" for k, v in settings.items())]
+    os.execve(sys.executable, argv, env)
+    return 0  # pragma: no cover - execve does not return
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     if args.command == "corrections":
         return check_corrections(args.file)
+    if args.command == "app":
+        return serve_app(args)
     if args.command == "output":
         try:
             return show_output(args)
-        except (pipeline_mod.PipelineError, RunError, OSError) as error:
+        except (pipeline_mod.PipelineError, RunError, OSError, ValueError) as error:
             print(f"soldera: {error}", file=sys.stderr)
             return 2
     try:
