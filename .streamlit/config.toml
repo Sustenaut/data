@@ -51,9 +51,12 @@ redColor = "#9b2c1f"
 yellowColor = "#8a5a00"
 greenColor = "#1f6b35"
 
-# Dark: soil surface, loam rules, cream text, sprout and leaf greens.
+# Dark: soil surface, loam rules, cream text, leaf green links. The primary
+# colour is a forest green, not the theme's sprout (#5bc236): Streamlit puts
+# white text on it (chips, buttons), which sprout gives 2.3:1 and glares in
+# large areas. #3b8547 gives white text 4.5:1 and stands 3.8:1 off the soil.
 [theme.dark]
-primaryColor = "#5bc236"
+primaryColor = "#3b8547"
 backgroundColor = "#221911"
 secondaryBackgroundColor = "#2b2017"
 textColor = "#f3efe2"
@@ -62,4 +65,4 @@ borderColor = "#3a2a1e"
 dataframeBorderColor = "#3a2a1e"
 redColor = "#f08a7a"
 yellowColor = "#e8a317"
-greenColor = "#5bc236"
+greenColor = "#3b8547"
