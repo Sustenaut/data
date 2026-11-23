@@ -134,7 +134,7 @@ def show_output(args: argparse.Namespace) -> int:
                            + ", ".join(o["name"] for o in outputs[:10]))
         target = copy_target(args.copy_to)
         storage.copy_to(outputs[0]["key"], target)
-        print(f"{target}: {outputs[0]['name']} from run {latest['run_id']}, sha256 {outputs[0]['sha256']}")
+        print(f"{args.copy_to}: {outputs[0]['name']} from run {latest['run_id']}, sha256 {outputs[0]['sha256']}")
         return 0
     for o in outputs:
         print(storage.path(o["key"]) if len(outputs) == 1 else f"{o['name']}\t{storage.path(o['key'])}")
