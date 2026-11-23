@@ -136,6 +136,9 @@ Feature: Stage 5, merge: every parsed file into the app's DuckDB
     Then it succeeds
     And it prints a line matching "power-auctions.duckdb: power-auctions.duckdb from run *, sha256 *"
     And the file "power-auctions.duckdb" exists
+    When I run "soldera output pipeline.yaml merge --copy-to ../power-auctions.duckdb"
+    Then the exit code is 2
+    And stderr mentions "--copy-to must name a file inside the working directory"
 
   Scenario: The newest database can be copied from the store's bucket, as the app reads it
     Given the "eex" service answers "GET /en/markets/energy-certificates/french-auctions-power" with 200 and:

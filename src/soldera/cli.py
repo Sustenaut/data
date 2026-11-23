@@ -108,6 +108,16 @@ def check_corrections(path: str) -> int:
     return 1 if problems else 0
 
 
+def copy_target(path: str) -> Path:
+    """Where --copy-to writes, resolved, which must be under the working
+    directory, as a pipeline file must."""
+    base = Path.cwd().resolve()
+    target = (base / path).resolve()
+    if not target.is_relative_to(base):
+        raise RunError(f"{path} is outside {base}; --copy-to must name a file inside the working directory")
+    return target
+
+
 def show_output(args: argparse.Namespace) -> int:
     pipeline = pipeline_mod.load(args.pipeline)
     stage = pipeline.stage(args.stage)
@@ -122,7 +132,7 @@ def show_output(args: argparse.Namespace) -> int:
         if len(outputs) > 1:
             raise RunError(f"stage {stage.name} published {len(outputs)} outputs; name one with --name: "
                            + ", ".join(o["name"] for o in outputs[:10]))
-        target = Path(args.copy_to)
+        target = copy_target(args.copy_to)
         storage.copy_to(outputs[0]["key"], target)
         print(f"{target}: {outputs[0]['name']} from run {latest['run_id']}, sha256 {outputs[0]['sha256']}")
         return 0
