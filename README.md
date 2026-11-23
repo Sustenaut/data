@@ -19,10 +19,28 @@ bin/soldera run PIPELINE.yaml --from auto     # from where a parser pin or an in
 bin/soldera run PIPELINE.yaml --force         # build every item again
 ```
 
-Outputs go to `store/` (`--store`, `SOLDERA_STORE`) and run log rows to
-`runs.jsonl` (`--run-log`, `SOLDERA_RUN_LOG`). `soldera run` exits 0 when every
-stage succeeded, 1 when a stage failed (any of its items failing fails it), and 2 when
-the run could not start as asked.
+Outputs go to `store/` (`--store`, `SOLDERA_STORE`), filed by content hash. To
+find or copy the newest published output of a stage:
+
+```sh
+bin/soldera output PIPELINE.yaml merge                                   # its path
+bin/soldera output PIPELINE.yaml merge --copy-to power-auctions.duckdb   # a copy
+bin/soldera output PIPELINE.yaml discover --name page.html               # one of several
+```
+
+Run log rows go to `runs.jsonl`, or to BigQuery with
+`--run-log bigquery:PROJECT.DATASET.TABLE` (`SOLDERA_RUN_LOG`). The table's
+schema is `src/soldera/core/schemas/pipeline_stage_runs.json`; rows are
+streamed in with Google's application default credentials (the job's service
+account on Cloud Run, `gcloud auth application-default login` on a laptop).
+A row that cannot be written stops the run.
+
+Web requests are tried up to three times when a transfer is cut off, the
+connection drops or times out, or the server answers 429 or 5xx.
+
+`soldera run` exits 0 when every stage succeeded, 1 when a stage failed (any
+of its items failing fails it) or the run log could not be written, and 2
+when the run could not start as asked.
 
 A pipeline file pins each stage's parser:
 

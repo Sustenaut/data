@@ -35,6 +35,10 @@ class LocalStorage:
             raise ValueError(f"key {key!r} is outside the store")
         return path
 
+    def path(self, key: str) -> Path:
+        """Where the object is on disk, for a person to open."""
+        return self._path(key)
+
     def uri(self, key: str) -> str:
         return self._path(key).as_uri()
 

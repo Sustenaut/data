@@ -119,3 +119,41 @@ Feature: Stage 5, merge: every parsed file into the app's DuckDB
     When I run "soldera run pipeline.yaml --from merge"
     Then it succeeds
     And it prints "merge: auction-results-duckdb@1.0.0 succeeded: 1 items, 0 built, 1 cached, 0 failed"
+
+  Scenario: The newest database can be found, or copied out, by its stage
+    Given the "eex" service answers "GET /en/markets/energy-certificates/french-auctions-power" with 200 and:
+      """
+      <h2>Guarantees of Origin Data</h2>
+      <a href="/fileadmin/GO/20210818_May_2021_27_Global_Results_detailedresults.csv">file</a>
+      """
+    And the "eex" service answers "GET /fileadmin/GO/20210818_May_2021_27_Global_Results_detailedresults.csv" with a full results csv for 28 participants, where:
+      | region | technology | offered | sold | price | winners |
+    And I ran "soldera run pipeline.yaml"
+    When I run "soldera output pipeline.yaml merge"
+    Then it succeeds
+    And it prints a line matching "*/store/05-merge/auction-results-duckdb@1.0.0/objects/*"
+    When I run "soldera output pipeline.yaml merge --copy-to power-auctions.duckdb"
+    Then it succeeds
+    And it prints a line matching "power-auctions.duckdb: power-auctions.duckdb from run *, sha256 *"
+    And the file "power-auctions.duckdb" exists
+
+  Scenario: A stage with several outputs needs the one to copy named
+    Given the "eex" service answers "GET /en/markets/energy-certificates/french-auctions-power" with 200 and:
+      """
+      <h2>Guarantees of Origin Data</h2>
+      <a href="/fileadmin/GO/20210818_May_2021_27_Global_Results_detailedresults.csv">file</a>
+      """
+    And the "eex" service answers "GET /fileadmin/GO/20210818_May_2021_27_Global_Results_detailedresults.csv" with a full results csv for 28 participants, where:
+      | region | technology | offered | sold | price | winners |
+    And I ran "soldera run pipeline.yaml --to discover"
+    When I run "soldera output pipeline.yaml discover --copy-to page.html"
+    Then the exit code is 2
+    And stderr mentions "stage discover published 2 outputs; name one with --name: page.html, files.json"
+    When I run "soldera output pipeline.yaml discover --name page.html --copy-to page.html"
+    Then it succeeds
+    And the file "page.html" includes "Guarantees of Origin Data"
+
+  Scenario: A stage that has published nothing has no output to show
+    When I run "soldera output pipeline.yaml merge"
+    Then the exit code is 2
+    And stderr mentions "stage merge (auction-results-duckdb@1.0.0) has published nothing in store"
