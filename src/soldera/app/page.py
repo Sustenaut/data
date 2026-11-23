@@ -489,18 +489,45 @@ def built_from(built: dict) -> str:
     return f", built {built['built_at']:%d %b %Y %H:%M} UTC from run " + (f"[{run}]({link})." if link else f"{run}.")
 
 
+# The title and the tab bar stay put while the tab below them scrolls:
+# Streamlit has no setting for it, so a style rule makes both sticky. The
+# masthead is one line of title and one of caption, so its height is known
+# (5.25rem) and the tab bar sits right under it, below Streamlit's own header
+# (3.75rem). The rule is on the masthead's wrapper, which spans the page.
+MASTHEAD_CSS = """<style>
+[data-testid="stLayoutWrapper"]:has(> .st-key-masthead) {{ position: sticky; top: 3.75rem; z-index: 999990;
+  background: {ground}; height: 5.25rem !important; }}
+.st-key-masthead {{ gap: 0 !important; }}
+.st-key-masthead h1 {{ font-size: 2rem; line-height: 2.75rem; padding: 0; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }}
+.st-key-masthead [data-testid="stCaptionContainer"] {{ margin-top: 1rem; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }}
+[data-testid="stTabs"] [role="tablist"] {{ position: sticky; top: 9rem; z-index: 999989;
+  background: {ground}; }}
+</style>"""
+
+
+def masthead(caption: str = "") -> None:
+    """The page's title and its caption, kept at the top as the page scrolls."""
+    st.html(MASTHEAD_CSS.format(ground=inks()["surface"]))
+    with st.container(key="masthead"):
+        st.title("French guarantees of origin auctions", anchor=False)
+        if caption:
+            st.caption(caption)
+
+
 def main() -> None:
     st.set_page_config(page_title="Power auctions · Sustenaut", layout="wide")
-    st.title("French guarantees of origin auctions")
     try:
         path, version = database_path(os.environ.get("SOLDERA_DATABASE") or None,
                                       os.environ.get("SOLDERA_STORE", "store"),
                                       os.environ.get("SOLDERA_PIPELINE", "pipelines/eex-french-power-auctions.yaml"))
         segments, choices = load(path, version)
     except (data.DataError, OSError, ValueError) as error:
+        masthead()
         st.error(f"The auction results cannot be read: {error}")
         st.stop()
-    st.caption(
+    masthead(
         "Monthly auctions of French renewable power's guarantees of origin, run by EEX for the French state. "
         f"Data from {choices.first_auction:%B %Y} to {choices.last_auction:%B %Y}{built_from(choices.built)}")
     filters = sidebar(choices)
