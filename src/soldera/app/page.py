@@ -1,7 +1,7 @@
 """data.sustenaut.eu/power-auctions: the prices of France's guarantees of
 origin auctions, from the merge stage's DuckDB, and data.sustenaut.eu's
-landing page, which links to it. streamlit_app.py routes each address to
-its page script (power_auctions.py runs `main`, home.py `landing`); the pages
+landing page, which links to it. streamlit_app.py runs `site` on every
+rerun, which routes / to `landing` and /power-auctions to `main`; the pages
 are here, in a module, so they are imported (and their coverage measured)
 like the rest of soldera.
 
@@ -317,14 +317,21 @@ def landing() -> None:
                 "and kept with a record of where each figure came from.")
     st.subheader("Auction results")
     with st.container(border=True):
-        st.page_link(POWER_AUCTIONS, label="French guarantees of origin auctions", icon=":material/bar_chart:")
+        st.page_link(power_auctions_page(), label="French guarantees of origin auctions", icon=":material/bar_chart:")
         st.markdown(
             "The monthly auctions in which the French state sells the guarantees of origin of the "
             "renewable power it supports, run by EEX. Prices by technology and region since the first "
             "auction: how they are distributed, and how they moved from one auction to the next.")
 
 
-POWER_AUCTIONS = "power_auctions.py"
+def power_auctions_page() -> st.Page:
+    return st.Page(main, title="Power auctions", url_path="power-auctions")
+
+
+def site() -> None:
+    """Every address of data.sustenaut.eu: the landing page at /, the app at /power-auctions."""
+    st.navigation([st.Page(landing, title="Sustenaut data", default=True), power_auctions_page()],
+                  position="hidden").run()
 
 
 def main() -> None:
