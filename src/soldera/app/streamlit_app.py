@@ -1,10 +1,11 @@
-"""The power-auctions app, as Streamlit runs it:
+"""data.sustenaut.eu, as Streamlit runs it:
 
     soldera app --store ./store         # on a laptop, from a copy of the store
     soldera app --store gs://BUCKET     # as the Cloud Run service does
 
-The page itself is soldera.app.page."""
+The landing page at / and the power-auctions app at /power-auctions; both are
+in soldera.app.page."""
 
-from soldera.app.page import main
+from soldera.app.page import site
 
-main()
+site()

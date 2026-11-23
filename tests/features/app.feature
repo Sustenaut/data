@@ -124,6 +124,10 @@ Feature: The power-auctions app's numbers
     Then the app shows no error
     And the app says "No auction matches these filters."
 
+  Scenario: data.sustenaut.eu's landing page links to the app
+    When the site's landing page is opened
+    Then the landing page links to "power-auctions" as "French guarantees of origin auctions"
+
   Scenario: The app says so when the store has no published database
     When the app is opened on an empty store
     Then the app shows the error "The auction results cannot be read: the merge stage (auction-results-duckdb@1.0.0) has published nothing in"
