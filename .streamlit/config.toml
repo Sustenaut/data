@@ -1,0 +1,65 @@
+# The app's look: Sustenaut's colours and fonts, from Sustenaut/theme v0.1.0
+# (tokens.json, the one copy every Sustenaut site uses), in light and dark.
+# With both set, the viewer picks Light, Dark or their system's setting under
+# the menu's Settings. Streamlit reads this file from the directory it is
+# started in: the repository's root, or /app in app.Dockerfile's image. The
+# plots' own colours are page.py's INKS, from the same tokens.
+
+[theme]
+font = "Nunito Sans"
+headingFont = "Nunito"
+baseRadius = "10px"
+showSidebarBorder = true
+
+# Nunito and Nunito Sans, variable weight, Latin and Latin Extended, from the
+# theme's v0.1.0 release on jsDelivr (its fonts.css, as a list here).
+[[theme.fontFaces]]
+family = "Nunito Sans"
+url = "https://cdn.jsdelivr.net/gh/Sustenaut/theme@v0.1.0/fonts/nunito-sans-latin-wght-normal.woff2"
+weight = "200 1000"
+unicodeRange = "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD"
+
+[[theme.fontFaces]]
+family = "Nunito Sans"
+url = "https://cdn.jsdelivr.net/gh/Sustenaut/theme@v0.1.0/fonts/nunito-sans-latin-ext-wght-normal.woff2"
+weight = "200 1000"
+unicodeRange = "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF"
+
+[[theme.fontFaces]]
+family = "Nunito"
+url = "https://cdn.jsdelivr.net/gh/Sustenaut/theme@v0.1.0/fonts/nunito-latin-wght-normal.woff2"
+weight = "200 1000"
+unicodeRange = "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD"
+
+[[theme.fontFaces]]
+family = "Nunito"
+url = "https://cdn.jsdelivr.net/gh/Sustenaut/theme@v0.1.0/fonts/nunito-latin-ext-wght-normal.woff2"
+weight = "200 1000"
+unicodeRange = "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF"
+
+# Light: cream surface (color-surface), the sidebar and inputs on sunken
+# cream, soil text, canopy green for the primary colour and links.
+[theme.light]
+primaryColor = "#1f6b35"
+backgroundColor = "#fffdf6"
+secondaryBackgroundColor = "#ede6d4"
+textColor = "#17110c"
+linkColor = "#1f6b35"
+borderColor = "#ddd4bf"
+dataframeBorderColor = "#ddd4bf"
+redColor = "#9b2c1f"
+yellowColor = "#8a5a00"
+greenColor = "#1f6b35"
+
+# Dark: soil surface, loam rules, cream text, sprout and leaf greens.
+[theme.dark]
+primaryColor = "#5bc236"
+backgroundColor = "#221911"
+secondaryBackgroundColor = "#2b2017"
+textColor = "#f3efe2"
+linkColor = "#a6de58"
+borderColor = "#3a2a1e"
+dataframeBorderColor = "#3a2a1e"
+redColor = "#f08a7a"
+yellowColor = "#e8a317"
+greenColor = "#5bc236"

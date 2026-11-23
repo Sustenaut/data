@@ -18,6 +18,8 @@ RUN pip install --require-hashes --only-binary=:all: -r requirements-app.lock
 COPY src ./src
 COPY pipelines ./pipelines
 COPY corrections ./corrections
+# The theme (Sustenaut's colours and fonts), read from the directory Streamlit starts in.
+COPY .streamlit ./.streamlit
 
 ARG SOLDERA_COMMIT=dev
 ENV PYTHONPATH=/app/src \

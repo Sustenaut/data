@@ -43,8 +43,7 @@ APP_PIPELINE = "pipelines/eex-french-power-auctions.yaml"
 APP_SETTINGS = {
     "server.headless": "true", "browser.gatherUsageStats": "false",
     "server.enableXsrfProtection": "true", "client.toolbarMode": "viewer",
-    "theme.base": "light", "theme.primaryColor": "#2F5D7C", "theme.textColor": "#2b2b2a",
-}
+}  # The theme is .streamlit/config.toml's: a flag here would override its light and dark.
 
 
 def parser() -> argparse.ArgumentParser:

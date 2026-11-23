@@ -32,6 +32,7 @@ from soldera.canonical import auction_results
 from soldera.core import notes as notes_mod
 from soldera.core.parser import Artifact, ItemResult, Note, Output, Parser, StageContext, WorkItem
 from soldera.core.registry import register
+from soldera.core.runlog import trigger_context
 
 PARQUET = "application/vnd.apache.parquet"
 UNIQUE = ("auction_id", "segment_level", "region", "technology")
@@ -164,7 +165,7 @@ def table(rows: list[dict[str, Any]], schema: pa.Schema) -> pa.Table:
 @register
 class Merge(Parser):
     name = "auction-results-duckdb"
-    version = "1.0.0"
+    version = "1.1.0"
 
     def plan(self, upstream: list[Artifact], ctx: StageContext) -> list[WorkItem]:
         files = sorted((a for a in upstream if a.media_type == PARQUET), key=lambda a: a.item_key)
@@ -185,8 +186,11 @@ class Merge(Parser):
         notes = [n for a in earlier for n in notes_mod.from_parquet(ctx.read(a))]
         notes += ctx.note_records(own, item)
         auctions = auctions_of(rows)
+        trigger = trigger_context()
         build = {
             "pipeline": ctx.pipeline, "stage": ctx.stage, "parser": self.ref(), "run_id": ctx.run_id,
+            # Where the run can be seen: its GitHub Actions run, or its Cloud Run execution.
+            "github_run_url": trigger.get("github_run_url"), "cloud_run_execution": trigger.get("cloud_run_execution"),
             "built_at": datetime.now(UTC).replace(tzinfo=None),
             "files": len(files), "rows": len(rows), "auctions": len(auctions), "notes": len(notes),
             "first_auction_date": auctions[0]["auction_date"] if auctions else None,

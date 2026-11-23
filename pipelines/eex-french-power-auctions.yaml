@@ -21,7 +21,7 @@ stages:
       # Mistakes found in EEX's files, and what is done about each.
       corrections: corrections/eex-french-power-auctions.yaml
   - name: merge
-    parser: auction-results-duckdb@1.0.0
+    parser: auction-results-duckdb@1.1.0
     options:
       # The file the app at data.sustenaut.eu/power-auctions reads.
       database: power-auctions.duckdb

@@ -12,7 +12,7 @@ without Streamlit and gives the same numbers wherever it runs."""
 from __future__ import annotations
 
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -24,8 +24,12 @@ DATABASE = "power-auctions.duckdb"
 # Wind, solar, hydro, thermal: the order EEX lists them in, and their colours,
 # soft but told apart by anyone (checked for colour-blind separation).
 TECHNOLOGIES = ("wind", "solar", "hydro", "thermal")
-COLOURS = {"wind": "#5A86E0", "solar": "#E09A10", "hydro": "#10A585", "thermal": "#CC5F3A"}
-LABELS = {"wind": "Wind (onshore)", "solar": "Solar", "hydro": "Hydro", "thermal": "Thermal"}
+# The technologies chosen, combined into one: what a segment's technology
+# becomes when Filters.combine is set, after them in every order.
+ALL = "all"
+ORDER = (*TECHNOLOGIES, ALL)
+COLOURS = {"wind": "#5A86E0", "solar": "#E09A10", "hydro": "#10A585", "thermal": "#CC5F3A", ALL: "#3E9A4F"}
+LABELS = {"wind": "Wind (onshore)", "solar": "Solar", "hydro": "Hydro", "thermal": "Thermal", ALL: "Combined"}
 
 # The statistics a point in time can show, in the order they are offered.
 STATISTICS = ("max", "p90", "mean", "median", "p10", "min")
@@ -50,10 +54,14 @@ class Filters:
     technologies: tuple[str, ...] = TECHNOLOGIES
     regions: tuple[str, ...] | None = None
     min_segment_mwh: float = 0.0
+    max_segment_mwh: float | None = None
     min_share_sold: float = 0.0
     max_share_sold: float = 1.0
     min_bidders: int = 0
+    max_bidders: int | None = None
     auction_numbers: tuple[int, int] | None = None
+    # The technologies kept, as one (ALL) rather than each on its own.
+    combine: bool = False
 
 
 @dataclass
@@ -87,6 +95,7 @@ class Choices:
     lowest_number: int | None
     highest_number: int | None
     most_bidders: int
+    largest_segment_mwh: float = 0.0
     built: dict[str, Any] = field(default_factory=dict)
 
 
@@ -137,6 +146,7 @@ def choices(con: duckdb.DuckDBPyConnection, segments: list[Segment]) -> Choices:
         lowest_number=min(numbers) if numbers else None,
         highest_number=max(numbers) if numbers else None,
         most_bidders=max((s.bidders or 0) for s in segments),
+        largest_segment_mwh=max(s.sold_mwh for s in segments),
         built=built,
     )
 
@@ -154,17 +164,45 @@ def select(segments: list[Segment], filters: Filters) -> list[Segment]:
             continue
         if s.sold_mwh < filters.min_segment_mwh:
             continue
+        if filters.max_segment_mwh is not None and s.sold_mwh > filters.max_segment_mwh:
+            continue
         share = s.share_sold if s.share_sold is not None else 0.0
         if not filters.min_share_sold <= share <= filters.max_share_sold:
             continue
         if (s.bidders or 0) < filters.min_bidders:
             continue
+        if filters.max_bidders is not None and (s.bidders or 0) > filters.max_bidders:
+            continue
         if filters.auction_numbers is not None:
             low, high = filters.auction_numbers
             if s.auction_number is None or not low <= s.auction_number <= high:
                 continue
-        kept.append(s)
+        kept.append(replace(s, technology=ALL) if filters.combine else s)
     return kept
+
+
+def volume_steps(largest: float) -> list[float]:
+    """The volumes a segment cutoff can be set to: 0, then 1, 2 and 5 times
+    each power of ten, up to the first that holds the largest segment. A
+    slider over these gives small volumes as much room as large ones."""
+    steps, scale = [0.0], 1.0
+    while True:
+        for factor in (1, 2, 5):
+            steps.append(factor * scale)
+            if factor * scale >= largest:
+                return steps
+        scale *= 10
+
+
+def run_link(built: dict[str, Any], execution_url: str | None = None) -> str | None:
+    """Where to see the run that built the database: its GitHub Actions run
+    when one started it, or else its Cloud Run execution, through
+    `execution_url` (with {execution} in it)."""
+    if built.get("github_run_url"):
+        return str(built["github_run_url"])
+    if built.get("cloud_run_execution") and execution_url:
+        return execution_url.replace("{execution}", str(built["cloud_run_execution"]))
+    return None
 
 
 def weighted_quantile(pairs: list[tuple[float, float]], q: float) -> float | None:
@@ -243,7 +281,7 @@ def distribution(selected: list[Segment], bins: int, spacing: str = "linear",
     if not priced:
         return None
     edges = bin_edges([s.price for s in priced], bins, spacing)
-    technologies = [t for t in TECHNOLOGIES if any(s.technology == t for s in priced)]
+    technologies = [t for t in ORDER if any(s.technology == t for s in priced)]
     heights = {t: [0.0] * bins for t in technologies}
     for s in priced:
         heights[s.technology][bin_index(edges, s.price)] += s.sold_mwh if weight == "mwh" else 1.0
@@ -266,7 +304,7 @@ def summary(selected: list[Segment], weighted: bool) -> list[dict[str, Any]]:
     """One row per technology: what the plot is drawn from, and what it
     leaves out."""
     rows = []
-    for technology in TECHNOLOGIES:
+    for technology in ORDER:
         mine = [s for s in selected if s.technology == technology]
         if not mine:
             continue
@@ -309,7 +347,7 @@ def over_time(selected: list[Segment], date_by: str, weighted: bool) -> list[dic
             "bidders": first.bidders,
             **statistics(priced, weighted),
         })
-    points.sort(key=lambda p: (p["at"], p["auction_id"], TECHNOLOGIES.index(p["technology"])))
+    points.sort(key=lambda p: (p["at"], p["auction_id"], ORDER.index(p["technology"])))
     return points
 
 

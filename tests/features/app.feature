@@ -83,8 +83,40 @@ Feature: The power-auctions app's numbers
       | technologies    | solar              | 4     | a1, a2   |
       | min_share_sold  | 0.8                | 4     | a2       |
       | min_bidders     | 15                 | 4     | a2       |
+      | max_bidders     | 15                 | 4     | a1       |
       | min_segment_mwh | 100                | 6     | a1, a2   |
+      | max_segment_mwh | 100                | 6     | a1, a2   |
       | auction_numbers | 1                  | 4     | a1       |
+      | combine         | wind, solar        | 8     | a1, a2   |
+
+  Scenario: Combined, the technologies are one series, with one point per auction
+    When the segments are filtered with combine set to "wind, solar"
+    Then every segment kept is "all"
+    When the price distribution of those is drawn with 3 bins spaced "linear", counting "mwh"
+    Then the bins hold:
+      | technology | heights       |
+      | all        | 200, 250, 500 |
+    When the points over time of those are made by "auction" date, weighted by MWh
+    Then the points are:
+      | auction | at         | technology | regions | unsold_regions | min  | p10  | median | mean | p90  | max  |
+      | a1      | 2025-01-15 | all        | 3       | 1              | 1.00 | 1.00 | 2.57   | 2.44 | 3.00 | 3.00 |
+      | a2      | 2025-02-19 | all        | 4       | 0              | 1.00 | 1.00 | 2.33   | 2.40 | 4.00 | 4.00 |
+
+  Scenario: The volume cutoffs step 1, 2 and 5 times each power of ten, up to the largest segment
+    When the volume steps are made for a largest segment of 300 MWh
+    Then the volume steps are "0, 1, 2, 5, 10, 20, 50, 100, 200, 500"
+    When the volume steps are made for a largest segment of 0.5 MWh
+    Then the volume steps are "0, 1"
+
+  Scenario Outline: The page links the run that built the database
+    When the run link is made for a database built by a run with <field> "<value>"
+    Then the run link is "<link>"
+
+    Examples:
+      | field               | value                                                  | link                                                   |
+      | github_run_url      | https://github.com/Sustenaut/soldera/actions/runs/7    | https://github.com/Sustenaut/soldera/actions/runs/7    |
+      | cloud_run_execution | soldera-ingest-abc12                                   | https://console.example/executions/soldera-ingest-abc12 |
+      | nothing             | -                                                      | none                                                   |
 
   Scenario: The app draws both pages from the database without an error
     When the app is opened on the database
@@ -108,19 +140,30 @@ Feature: The power-auctions app's numbers
       | radio       | Date by                         | production  |
       | multiselect | Regions                         | FR-ARA      |
       | multiselect | Technologies                    | solar       |
-      | slider      | At least this many bidders      | 15          |
+      | slider      | Bidders                         | 15, 20      |
       | slider      | Share of offered volume sold    | 80, 100     |
       | slider      | Auction numbers                 | 2, 2        |
-      | number      | Segments that sold at least (MWh) | 100       |
+      | range       | Segments that sold (MWh)        | 100, 500    |
     Then the app shows no error
     And the app's distribution page describes "1 auction by production month from November 2024 to December 2024, in Auvergne-Rhône-Alpes."
+
+  Scenario: Combined, the technologies chosen are drawn as one
+    When the app is opened on the database
+    And each control is set in turn:
+      | control | label                           | value    |
+      | toggle  | Combine them                    | true     |
+      | radio   | Bin spacing                     | log      |
+      | radio   | Layout                          | overlay  |
+      | radio   | Hover shows                     | all      |
+    Then the app shows no error
+    And the app's distribution page describes "2 auctions by auction date from January 2025 to February 2025, in every region. Every technology combined."
 
   Scenario: Filters that keep nothing say so
     When the app is opened on the database
     And each control is set in turn:
       | control | label                      | value |
-      | slider  | At least this many bidders | 20    |
-      | number  | Segments that sold at least (MWh) | 1000 |
+      | slider  | Bidders                    | 20, 20 |
+      | range   | Segments that sold (MWh)   | 500, 500 |
     Then the app shows no error
     And the app says "No auction matches these filters."
 
@@ -130,4 +173,4 @@ Feature: The power-auctions app's numbers
 
   Scenario: The app says so when the store has no published database
     When the app is opened on an empty store
-    Then the app shows the error "The auction results cannot be read: the merge stage (auction-results-duckdb@1.0.0) has published nothing in"
+    Then the app shows the error "The auction results cannot be read: the merge stage (auction-results-duckdb@1.1.0) has published nothing in"
