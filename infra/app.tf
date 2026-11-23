@@ -184,6 +184,12 @@ resource "google_cloud_run_v2_service" "app" {
         name  = "SOLDERA_STORE"
         value = "gs://${google_storage_bucket.store.name}"
       }
+      # The page links the run that built its data; a scheduled run is a
+      # Cloud Run execution of the ingest job, shown here.
+      env {
+        name  = "SOLDERA_EXECUTION_URL"
+        value = "https://console.cloud.google.com/run/jobs/executions/details/${local.region}/{execution}/tasks?project=${local.project}"
+      }
       resources {
         limits = {
           cpu    = "1"

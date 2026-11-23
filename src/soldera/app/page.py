@@ -21,8 +21,21 @@ from plotly.subplots import make_subplots
 from soldera.app import data
 from soldera.parsers.eex.results import REGION_NAMES
 
-INK, MUTED, GRID = "#2b2b2a", "#6b6a66", "#e6e5e1"
-FONT = dict(family="Inter, system-ui, sans-serif", size=13, color=INK)
+# Sustenaut's colours (Sustenaut/theme's tokens.json, v0.1.0), for what the
+# plots draw themselves: text, rules and the outline between marks. The page
+# around them takes the same tokens from .streamlit/config.toml, in light and
+# dark, which the viewer switches between in the menu's Settings.
+INKS = {
+    "light": dict(ink="#17110c", muted="#5d4d3f", grid="#ddd4bf", surface="#fffdf6"),
+    "dark": dict(ink="#f3efe2", muted="#b9ab95", grid="#3a2a1e", surface="#221911"),
+}
+FONT_FAMILY = '"Nunito Sans", system-ui, -apple-system, "Segoe UI", sans-serif'
+
+
+def inks() -> dict[str, str]:
+    """The plots' colours for the theme the viewer has, light until the
+    browser has said."""
+    return INKS["dark" if st.context.theme.type == "dark" else "light"]
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -63,16 +76,22 @@ def mwh(value: float) -> str:
 
 
 def style(figure: go.Figure, height: int, legend_below: bool = False) -> go.Figure:
+    colours = inks()
+    font = dict(family=FONT_FAMILY, size=13, color=colours["ink"])
     figure.update_layout(
-        height=height, font=FONT, plot_bgcolor="white", paper_bgcolor="white",
-        margin=dict(l=8, r=8, t=36, b=8), bargap=0.04, hoverlabel=dict(font=FONT, bgcolor="white"),
+        height=height, font=font, plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=8, r=8, t=36, b=8), bargap=0.04,
+        hoverlabel=dict(font=font, bgcolor=colours["surface"], bordercolor=colours["grid"]),
     )
+    figure.update_annotations(font=dict(family=FONT_FAMILY, size=13, color=colours["ink"]))
     if legend_below:
         figure.update_layout(margin=dict(l=8, r=8, t=36, b=100))
     else:
         figure.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0))
-    figure.update_xaxes(showgrid=False, linecolor=GRID, ticks="outside", tickcolor=GRID, zeroline=False)
-    figure.update_yaxes(gridcolor=GRID, zeroline=False, linecolor=GRID)
+    figure.update_xaxes(showgrid=False, linecolor=colours["grid"], ticks="outside", tickcolor=colours["grid"],
+                        zeroline=False, title_font=dict(color=colours["muted"], size=12))
+    figure.update_yaxes(gridcolor=colours["grid"], zeroline=False, linecolor=colours["grid"],
+                        title_font=dict(color=colours["muted"], size=12))
     return figure
 
 
@@ -88,6 +107,8 @@ def sidebar(choices: data.Choices) -> data.Filters:
     start, end = side.slider("Dates", min_value=first, max_value=last, value=(first, last), format="MMM YYYY")
     technologies = side.multiselect("Technologies", data.TECHNOLOGIES, default=list(data.TECHNOLOGIES),
                                     format_func=data.LABELS.get)
+    combine = side.toggle("Combine them", value=False,
+                          help="Plot the technologies chosen as one, instead of one each.")
     regions = side.multiselect("Regions", choices.regions, default=[], format_func=region_name,
                                placeholder="All regions",
                                help="Leave empty for every region. A few regions can pull a distribution; "
@@ -105,21 +126,31 @@ def sidebar(choices: data.Choices) -> data.Filters:
             "Share of offered volume sold", 0, 100, (0, 100), format="%d%%",
             help="Of all the volume an auction offered, how much sold. An auction that sold nearly "
                  "everything was undersubscribed; one that sold little had more supply than bids.")
-        bidders = st.slider("At least this many bidders", 0, choices.most_bidders, 0)
-        min_mwh = st.number_input("Segments that sold at least (MWh)", min_value=0, value=0, step=100,
-                                  help="Leave out a region's segment that sold less than this: a small "
-                                       "segment's price rests on few certificates.")
+        fewest, most = st.slider("Bidders", 0, choices.most_bidders, (0, choices.most_bidders),
+                                 help="How many took part in the auction.")
+        steps = data.volume_steps(choices.largest_segment_mwh)
+        low_mwh, high_mwh = st.select_slider(
+            "Segments that sold (MWh)", steps, value=(steps[0], steps[-1]), format_func=mwh,
+            help="Leave out a region's segment that sold less, or more, than this. A small segment's "
+                 "price rests on few certificates; a large one carries much of an auction's volume.")
     return data.Filters(start=start, end=end, date_by=date_by, technologies=tuple(technologies),
-                        regions=tuple(regions) or None, min_segment_mwh=float(min_mwh),
+                        regions=tuple(regions) or None, min_segment_mwh=float(low_mwh),
+                        max_segment_mwh=None if high_mwh == steps[-1] else float(high_mwh),
                         min_share_sold=share_low / 100, max_share_sold=share_high / 100,
-                        min_bidders=bidders, auction_numbers=numbers)
+                        min_bidders=fewest, max_bidders=None if most == choices.most_bidders else most,
+                        auction_numbers=numbers, combine=combine and len(technologies) > 1)
 
 
 def describe(filters: data.Filters, selected: list[data.Segment]) -> str:
     auctions = len({s.auction_id for s in selected})
     where = ", ".join(region_name(r) for r in filters.regions) if filters.regions else "every region"
     by = "auction date" if filters.date_by == "auction" else "production month"
-    return (f"{auctions} auction{'' if auctions == 1 else 's'} by {by} from {filters.start:%B %Y} to {filters.end:%B %Y}, in {where}.")
+    combined = ""
+    if filters.combine:
+        combined = (" Every technology combined." if len(filters.technologies) == len(data.TECHNOLOGIES) else
+                    " Combined: " + ", ".join(data.LABELS[t] for t in filters.technologies) + ".")
+    return (f"{auctions} auction{'' if auctions == 1 else 's'} by {by} from {filters.start:%B %Y} to "
+            f"{filters.end:%B %Y}, in {where}.{combined}")
 
 
 def summary_table(selected: list[data.Segment], weighted: bool) -> None:
@@ -168,7 +199,6 @@ def distribution_tab(filters: data.Filters, selected: list[data.Segment]) -> Non
     figure = (make_subplots(rows=len(technologies), cols=1, shared_xaxes=True, vertical_spacing=0.09,
                             subplot_titles=[data.LABELS[t] for t in technologies])
               if panels else go.Figure())
-    centres = [(a + b) / 2 for a, b in zip(result.edges, result.edges[1:], strict=False)]
     widths = [b - a for a, b in zip(result.edges, result.edges[1:], strict=False)]
     ranges = [f"€{a:,.2f} – €{b:,.2f}" for a, b in zip(result.edges, result.edges[1:], strict=False)]
     for row, technology in enumerate(technologies, start=1):
@@ -177,10 +207,13 @@ def distribution_tab(filters: data.Filters, selected: list[data.Segment]) -> Non
         values = [h / total * 100 for h in heights] if share == "share" else heights
         shown = [f"{h / total:.1%} of {data.LABELS[technology].lower()}" for h in heights]
         amount = [mwh(h) if weight == "mwh" else f"{h:,.0f} segments" for h in heights]
+        # Each bar starts at its bin's lower edge and is as wide as the bin, so
+        # it fills the bin on a logarithmic axis too (left to Plotly, every
+        # bar there would be as narrow as the lowest bin).
         bar = go.Bar(
-            x=centres, y=values, width=widths if spacing == "linear" else None, name=data.LABELS[technology],
+            x=result.edges[:-1], y=values, width=widths, offset=0, name=data.LABELS[technology],
             marker=dict(color=data.COLOURS[technology], opacity=0.85 if panels else 0.55,
-                        line=dict(color="white", width=1)),
+                        line=dict(color=inks()["surface"], width=1)),
             customdata=list(zip(ranges, amount, shown, strict=True)),
             hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]}<br>%{customdata[2]}<extra>"
                           + data.LABELS[technology] + "</extra>",
@@ -192,11 +225,10 @@ def distribution_tab(filters: data.Filters, selected: list[data.Segment]) -> Non
     if not panels:
         figure.update_layout(barmode="overlay")
     y_title = "% of technology" if share == "share" else unit
-    figure.update_yaxes(title_text=y_title, title_font=dict(color=MUTED, size=12))
+    figure.update_yaxes(title_text=y_title)
     figure.update_xaxes(type="log" if spacing == "log" else "linear")
     figure.update_xaxes(title_text="Price, €/MWh (each region's volume-weighted average)",
-                        title_font=dict(color=MUTED, size=12), row=len(technologies) if panels else None, col=1
-                        if panels else None)
+                        row=len(technologies) if panels else None, col=1 if panels else None)
     height = 170 * len(technologies) + 90 if panels else 440
     st.plotly_chart(style(figure, height), width="stretch", config={"displaylogo": False})
     summary_table(selected, weight == "mwh")
@@ -236,7 +268,7 @@ def over_time_tab(filters: data.Filters, selected: list[data.Segment]) -> None:
         + ("weighted by the MWh each sold." if weighted else "each region counted once.")
         + " Lowest and highest are the lowest and highest regional average, not single bids.")
 
-    technologies = [t for t in data.TECHNOLOGIES if any(p["technology"] == t for p in points)]
+    technologies = [t for t in data.ORDER if any(p["technology"] == t for p in points)]
     panels = layout == "panels"
     figure = (make_subplots(rows=len(technologies), cols=1, shared_xaxes=True, shared_yaxes=True,
                             vertical_spacing=0.07, subplot_titles=[data.LABELS[t] for t in technologies])
@@ -262,21 +294,20 @@ def over_time_tab(filters: data.Filters, selected: list[data.Segment]) -> None:
                 legendgroup=technology, showlegend=False,
                 line=dict(color=colour, width=2 if main else 1.2, dash=line_style["dash"]),
                 marker=dict(color=colour, size=7 if main else 6, symbol=line_style["symbol"],
-                            line=dict(color="white", width=1)),
+                            line=dict(color=inks()["surface"], width=1)),
                 text=text, hovertemplate="%{text}<extra></extra>"), **place)
         if not panels:  # the panels' titles name them
             figure.add_trace(go.Scatter(x=[None], y=[None], mode="lines", name=label, legendgroup=technology,
                                         line=dict(color=colour, width=3)))
     for stat in [s for s in data.STATISTICS if s in shown]:  # what each line style means
         figure.add_trace(go.Scatter(x=[None], y=[None], mode="lines+markers", name=data.STATISTIC_LABELS[stat],
-                                    line=dict(color=MUTED, width=1.5, dash=STAT_STYLE[stat]["dash"]),
-                                    marker=dict(color=MUTED, size=7, symbol=STAT_STYLE[stat]["symbol"]),
+                                    line=dict(color=inks()["muted"], width=1.5, dash=STAT_STYLE[stat]["dash"]),
+                                    marker=dict(color=inks()["muted"], size=7, symbol=STAT_STYLE[stat]["symbol"]),
                                     legendgroup="statistics"))
     figure.update_layout(hovermode="closest", legend=dict(orientation="h", y=-0.12 if not panels else -0.06,
                                                            yanchor="top", x=0, xanchor="left"))
-    figure.update_yaxes(title_text="€/MWh", title_font=dict(color=MUTED, size=12))
-    figure.update_xaxes(title_text=by.capitalize(), title_font=dict(color=MUTED, size=12),
-                        **(dict(row=len(technologies), col=1) if panels else {}))
+    figure.update_yaxes(title_text="€/MWh")
+    figure.update_xaxes(title_text=by.capitalize(), **(dict(row=len(technologies), col=1) if panels else {}))
     height = 200 * len(technologies) + 140 if panels else 560
     st.plotly_chart(style(figure, height, legend_below=True), width="stretch", config={"displaylogo": False})
     summary_table(selected, weighted)
@@ -334,6 +365,16 @@ def site() -> None:
                   position="hidden").run()
 
 
+def built_from(built: dict) -> str:
+    """When the database was built and by which run, linked to where that
+    run can be seen."""
+    if not isinstance(built.get("built_at"), date):
+        return "."
+    run = str(built.get("run_id"))
+    link = data.run_link(built, os.environ.get("SOLDERA_EXECUTION_URL") or None)
+    return f", built {built['built_at']:%d %b %Y %H:%M} UTC from run " + (f"[{run}]({link})." if link else f"{run}.")
+
+
 def main() -> None:
     st.set_page_config(page_title="Power auctions · Sustenaut", layout="wide")
     st.title("French guarantees of origin auctions")
@@ -345,12 +386,9 @@ def main() -> None:
     except (data.DataError, OSError, ValueError) as error:
         st.error(f"The auction results cannot be read: {error}")
         st.stop()
-    built = choices.built
     st.caption(
         "Monthly auctions of French renewable power's guarantees of origin, run by EEX for the French state. "
-        f"Data from {choices.first_auction:%B %Y} to {choices.last_auction:%B %Y}"
-        + (f", built {built['built_at']:%d %b %Y %H:%M} UTC from run {built.get('run_id')}." if
-           isinstance(built.get("built_at"), date) else "."))
+        f"Data from {choices.first_auction:%B %Y} to {choices.last_auction:%B %Y}{built_from(choices.built)}")
     filters = sidebar(choices)
     selected = data.select(segments, filters)
     if not filters.technologies or not selected:

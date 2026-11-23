@@ -31,7 +31,7 @@ Feature: Stage 5, merge: every parsed file into the app's DuckDB
       """
     When I run "soldera run pipeline.yaml"
     Then it succeeds
-    And it prints "merge: auction-results-duckdb@1.0.0 succeeded: 1 items, 1 built, 0 cached, 0 failed"
+    And it prints "merge: auction-results-duckdb@1.1.0 succeeded: 1 items, 1 built, 0 cached, 0 failed"
     And the database of "merge" answers "SELECT auction_id, auction_number, segments, bidders_count, volume_offered_mwh, volume_allocated_mwh, round(price_weighted_avg_eur_mwh, 4) FROM auctions" with:
       | auction_id           | auction_number | segments | bidders_count | volume_offered_mwh | volume_allocated_mwh | round(price_weighted_avg_eur_mwh, 4) |
       | eex-fr-go-2021-05-27 | 27             | 48       | 28            | 5700.0             | 5300.0               | 0.6132                               |
@@ -118,7 +118,7 @@ Feature: Stage 5, merge: every parsed file into the app's DuckDB
     And I ran "soldera run pipeline.yaml"
     When I run "soldera run pipeline.yaml --from merge"
     Then it succeeds
-    And it prints "merge: auction-results-duckdb@1.0.0 succeeded: 1 items, 0 built, 1 cached, 0 failed"
+    And it prints "merge: auction-results-duckdb@1.1.0 succeeded: 1 items, 0 built, 1 cached, 0 failed"
 
   Scenario: The newest database can be found, or copied out, by its stage
     Given the "eex" service answers "GET /en/markets/energy-certificates/french-auctions-power" with 200 and:
@@ -131,7 +131,7 @@ Feature: Stage 5, merge: every parsed file into the app's DuckDB
     And I ran "soldera run pipeline.yaml"
     When I run "soldera output pipeline.yaml merge"
     Then it succeeds
-    And it prints a line matching "*/store/05-merge/auction-results-duckdb@1.0.0/objects/*"
+    And it prints a line matching "*/store/05-merge/auction-results-duckdb@1.1.0/objects/*"
     When I run "soldera output pipeline.yaml merge --copy-to power-auctions.duckdb"
     Then it succeeds
     And it prints a line matching "power-auctions.duckdb: power-auctions.duckdb from run *, sha256 *"
@@ -153,26 +153,26 @@ Feature: Stage 5, merge: every parsed file into the app's DuckDB
     And the "storage" service serves the store as the bucket "soldera-store"
     When I run "soldera output pipeline.yaml merge --store gs://soldera-store"
     Then it succeeds
-    And it prints a line matching "gs://soldera-store/05-merge/auction-results-duckdb@1.0.0/objects/*"
+    And it prints a line matching "gs://soldera-store/05-merge/auction-results-duckdb@1.1.0/objects/*"
     When I run "soldera output pipeline.yaml merge --store gs://soldera-store --copy-to power-auctions.duckdb"
     Then it succeeds
     And it prints a line matching "power-auctions.duckdb: power-auctions.duckdb from run *, sha256 *"
     And the file "power-auctions.duckdb" exists
-    And the "storage" service was asked "GET /storage/v1/b/soldera-store/o/05-merge%2Fauction-results-duckdb%401.0.0%2Flatest.json" with the header "Authorization" set to "Bearer t0ken"
+    And the "storage" service was asked "GET /storage/v1/b/soldera-store/o/05-merge%2Fauction-results-duckdb%401.1.0%2Flatest.json" with the header "Authorization" set to "Bearer t0ken"
 
   Scenario: A bucket with nothing published, or that refuses to be read, says so
     Given the "metadata" service is the metadata server of a job, giving the token "t0ken"
-    And the "storage" service answers "GET /storage/v1/b/empty-store/o/05-merge%2Fauction-results-duckdb%401.0.0%2Flatest.json" with 404
-    And the "storage" service answers "GET /storage/v1/b/closed-store/o/05-merge%2Fauction-results-duckdb%401.0.0%2Flatest.json" with 403 and:
+    And the "storage" service answers "GET /storage/v1/b/empty-store/o/05-merge%2Fauction-results-duckdb%401.1.0%2Flatest.json" with 404
+    And the "storage" service answers "GET /storage/v1/b/closed-store/o/05-merge%2Fauction-results-duckdb%401.1.0%2Flatest.json" with 403 and:
       """
       {"error": {"code": 403, "message": "soldera-app does not have storage.objects.get access"}}
       """
     When I run "soldera output pipeline.yaml merge --store gs://empty-store"
     Then the exit code is 2
-    And stderr mentions "stage merge (auction-results-duckdb@1.0.0) has published nothing in gs://empty-store"
+    And stderr mentions "stage merge (auction-results-duckdb@1.1.0) has published nothing in gs://empty-store"
     When I run "soldera output pipeline.yaml merge --store gs://closed-store"
     Then the exit code is 2
-    And stderr mentions "cannot read gs://closed-store/05-merge/auction-results-duckdb@1.0.0/latest.json: 403"
+    And stderr mentions "cannot read gs://closed-store/05-merge/auction-results-duckdb@1.1.0/latest.json: 403"
     When I run "soldera output pipeline.yaml merge --store gs://"
     Then the exit code is 2
     And stderr mentions "'gs://' is not gs://BUCKET"
@@ -196,4 +196,4 @@ Feature: Stage 5, merge: every parsed file into the app's DuckDB
   Scenario: A stage that has published nothing has no output to show
     When I run "soldera output pipeline.yaml merge"
     Then the exit code is 2
-    And stderr mentions "stage merge (auction-results-duckdb@1.0.0) has published nothing in store"
+    And stderr mentions "stage merge (auction-results-duckdb@1.1.0) has published nothing in store"

@@ -133,14 +133,53 @@ FILTERS = {
     "technologies": lambda v: data.Filters(technologies=tuple(v.split(", "))),
     "min_share_sold": lambda v: data.Filters(min_share_sold=float(v)),
     "min_bidders": lambda v: data.Filters(min_bidders=int(v)),
+    "max_bidders": lambda v: data.Filters(max_bidders=int(v)),
     "min_segment_mwh": lambda v: data.Filters(min_segment_mwh=float(v)),
+    "max_segment_mwh": lambda v: data.Filters(max_segment_mwh=float(v)),
     "auction_numbers": lambda v: data.Filters(auction_numbers=(int(v), int(v))),
+    "combine": lambda v: data.Filters(technologies=tuple(v.split(", ")), combine=True),
 }
 
 
 @when(parsers.parse('the segments are filtered with {name} set to "{value}"'))
 def filtered(app, name, value):
     app["kept"] = data.select(app["segments"], FILTERS[name](value))
+
+
+@then(parsers.parse('every segment kept is "{technology}"'))
+def kept_as(app, technology):
+    assert {s.technology for s in app["kept"]} == {technology}
+
+
+@when(parsers.parse('the price distribution of those is drawn with {bins:d} bins spaced "{spacing}", counting "{weight}"'))
+def draw_kept_distribution(app, bins, spacing, weight):
+    app["distribution"] = data.distribution(app["kept"], bins, spacing, weight)
+
+
+@when(parsers.parse('the points over time of those are made by "{date_by}" date, weighted by MWh'))
+def kept_points(app, date_by):
+    app["rows"] = data.over_time(app["kept"], date_by, weighted=True)
+
+
+@when(parsers.parse("the volume steps are made for a largest segment of {largest:g} MWh"))
+def make_volume_steps(app, largest):
+    app["steps"] = data.volume_steps(largest)
+
+
+@then(parsers.parse('the volume steps are "{steps}"'))
+def volume_steps(app, steps):
+    assert ", ".join(f"{v:g}" for v in app["steps"]) == steps
+
+
+@when(parsers.parse('the run link is made for a database built by a run with {field} "{value}"'))
+def make_run_link(app, field, value):
+    built = {field: value} if value != "-" else {}
+    app["link"] = data.run_link(built, "https://console.example/executions/{execution}")
+
+
+@then(parsers.parse('the run link is "{link}"'))
+def run_link_is(app, link):
+    assert (app["link"] or "none") == link, app["link"]
 
 
 @then(parsers.parse('{count:d} segments are kept, from the auctions "{auctions}"'))
@@ -197,7 +236,7 @@ def open_app_empty(ctx, app, monkeypatch):
 
 def widget(test, control: str, label: str):
     kinds = {"radio": test.radio, "slider": test.slider, "multiselect": test.multiselect, "toggle": test.toggle,
-             "number": test.number_input}
+             "number": test.number_input, "range": test.select_slider}
     found = [w for w in kinds[control] if (w.key == label[1:] if label.startswith("#") else w.label == label)]
     assert found, f"the app has no {control} {label!r}"
     return found[0]
@@ -208,7 +247,7 @@ def value(control: str, text: str, current):
         return text.split(", ")
     if control == "toggle":
         return text == "true"
-    if control in ("slider", "number"):
+    if control in ("slider", "number", "range"):
         parts = [type(current[0] if isinstance(current, (list, tuple)) else current)(p) for p in text.split(", ")]
         return tuple(parts) if len(parts) > 1 else parts[0]
     return text
