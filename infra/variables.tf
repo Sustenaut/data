@@ -3,3 +3,9 @@ variable "workload_identity_pool" {
   type        = string
   default     = "github"
 }
+
+variable "serve_app" {
+  description = "Whether the soldera-app service exists. Set it to true once both sign-in secrets hold a value and the deploy workflow has pushed the app's image and its copy of oauth2-proxy (README, \"Deploying the app\")."
+  type        = bool
+  default     = false
+}

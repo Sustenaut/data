@@ -1,0 +1,88 @@
+# Builds the app's image (app.Dockerfile) from main, checks that it serves
+# the landing page and the power-auctions page, pushes it, keeps a copy of
+# oauth2-proxy beside it, and points the soldera-app service's app container
+# at it. It runs as soldera-deploy (infra/), like deploy.yml, and waits for
+# the same repository variable DEPLOY_CI. Until infra/'s serve_app is true
+# there is no service: it then pushes the images, which the service's first
+# revision starts from, and stops there. The repository variable APP_SERVICE
+# set to on (once the service exists) turns the last step on.
+name: deploy app
+
+on:
+  push:
+    branches: [main]
+    paths: [src/**, pipelines/**, app.Dockerfile, .dockerignore, requirements-app.lock, .github/workflows/deploy-app.yml]
+  workflow_dispatch:
+    inputs:
+      no-cache:
+        description: Build every layer again, with the current base packages
+        type: boolean
+        default: false
+
+permissions: { contents: read, id-token: write }
+
+concurrency: { group: deploy-soldera-app, cancel-in-progress: false }
+
+env:
+  REGION: europe-north1
+  IMAGE: europe-north1-docker.pkg.dev/sustenaut/soldera/app
+  SERVICE: soldera-app
+  # oauth2-proxy, the service's front container (infra/app.tf), by its
+  # digest: Cloud Run does not pull from quay.io, so this keeps a copy of
+  # exactly that release in soldera's registry. The planning app's release.
+  PROXY_FROM: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
+  PROXY: europe-north1-docker.pkg.dev/sustenaut/soldera/oauth2-proxy:v7.15.5
+
+jobs:
+  deploy:
+    if: vars.DEPLOY_CI == 'on' && github.ref == 'refs/heads/main'
+    runs-on: sustenaut-ci
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: Sustenaut/pubhost/actions/docker-build@cd88da2277ef8772744e14c38df24b350ee2cacb # v0.2.0
+        with:
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
+          scope: soldera-app
+          file: app.Dockerfile
+          build-args: SOLDERA_COMMIT=${{ github.sha }}
+          no-cache: ${{ inputs.no-cache || false }}
+
+      # Streamlit answers its health check once it serves, and every page
+      # with the same shell; the pages themselves are drawn over its
+      # websocket, which the suite's AppTest scenarios cover.
+      - name: The image serves the app
+        run: |
+          docker run -d --name app -p 8080:8080 "$IMAGE:$GITHUB_SHA"
+          for i in $(seq 1 30); do curl -fs localhost:8080/_stcore/health && break; sleep 1; done
+          curl -fs localhost:8080/_stcore/health
+          curl -fs localhost:8080/ | grep -q '<div id="root">'
+          curl -fs localhost:8080/power-auctions | grep -q '<div id="root">'
+          docker rm -f app
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: projects/948171295184/locations/global/workloadIdentityPools/github/providers/github
+          service_account: soldera-deploy@sustenaut.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Push the images
+        run: |
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+          docker push "$IMAGE:$GITHUB_SHA"
+          docker tag "$IMAGE:$GITHUB_SHA" "$IMAGE:latest"
+          docker push "$IMAGE:latest"
+          if ! docker manifest inspect "$PROXY" >/dev/null 2>&1; then
+            docker pull "$PROXY_FROM"
+            docker tag "$PROXY_FROM" "$PROXY"
+            docker push "$PROXY"
+          fi
+
+      # The app container only: oauth2-proxy is Terraform's (infra/app.tf).
+      # Every flag after --container is that container's.
+      - name: Deploy it to the service
+        if: vars.APP_SERVICE == 'on'
+        run: |
+          gcloud run deploy "$SERVICE" --region "$REGION" --quiet --container app --image "$IMAGE:$GITHUB_SHA"
+          echo "Deployed \`$IMAGE:$GITHUB_SHA\` to the Cloud Run service \`$SERVICE\`." >> "$GITHUB_STEP_SUMMARY"

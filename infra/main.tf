@@ -29,7 +29,7 @@ resource "google_artifact_registry_repository" "soldera" {
   location      = local.region
   repository_id = "soldera"
   format        = "DOCKER"
-  description   = "soldera's ingest image, pushed by GitHub Actions in ${local.repository}."
+  description   = "soldera's images (ingest, app, and a copy of oauth2-proxy), pushed by GitHub Actions in ${local.repository}."
 
   cleanup_policies {
     id     = "keep-recent"

@@ -1,7 +1,9 @@
 """data.sustenaut.eu/power-auctions: the prices of France's guarantees of
-origin auctions, from the merge stage's DuckDB. streamlit_app.py runs `main`
-on every rerun; the page is here, in a module, so it is imported (and its
-coverage measured) like the rest of soldera.
+origin auctions, from the merge stage's DuckDB, and data.sustenaut.eu's
+landing page, which links to it. streamlit_app.py routes each address to
+its page script (power_auctions.py runs `main`, home.py `landing`); the pages
+are here, in a module, so they are imported (and their coverage measured)
+like the rest of soldera.
 
 It reads the database named by SOLDERA_DATABASE, or else the newest one the
 merge stage of SOLDERA_PIPELINE published in SOLDERA_STORE (a directory, or
@@ -305,6 +307,24 @@ def hover_all(points: list[dict]) -> str:
         values = " · ".join("–" if p[s] is None else f"{p[s]:.2f}" for s in ("min", "p10", "median", "mean", "p90", "max"))
         lines.append(f"{data.LABELS[p['technology']]}: €{values}")
     return "<br>".join(lines)
+
+
+def landing() -> None:
+    """data.sustenaut.eu itself: what the site is, and a block per kind of data."""
+    st.set_page_config(page_title="Sustenaut data", layout="wide")
+    st.title("Sustenaut data")
+    st.markdown("Data on renewable energy markets, collected from their publishers, checked, "
+                "and kept with a record of where each figure came from.")
+    st.subheader("Auction results")
+    with st.container(border=True):
+        st.page_link(POWER_AUCTIONS, label="French guarantees of origin auctions", icon=":material/bar_chart:")
+        st.markdown(
+            "The monthly auctions in which the French state sells the guarantees of origin of the "
+            "renewable power it supports, run by EEX. Prices by technology and region since the first "
+            "auction: how they are distributed, and how they moved from one auction to the next.")
+
+
+POWER_AUCTIONS = "power_auctions.py"
 
 
 def main() -> None:

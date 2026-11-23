@@ -27,3 +27,18 @@ output "workload_identity_provider" {
   description = "The provider the deploy and ingest workflows authenticate through, whose id is the pool's."
   value       = "projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/${var.workload_identity_pool}/providers/${var.workload_identity_pool}"
 }
+
+output "app_image" {
+  description = "Where the deploy workflow pushes the app's image."
+  value       = local.app_image
+}
+
+output "app_service" {
+  description = "The Cloud Run service at data.sustenaut.eu, once var.serve_app is true; shared-infra maps the domain to it."
+  value       = var.serve_app ? google_cloud_run_v2_service.app[0].name : null
+}
+
+output "app_secrets" {
+  description = "The secrets a person puts the sign-in values in, before var.serve_app is set."
+  value       = keys(google_secret_manager_secret.app_sign_in)
+}

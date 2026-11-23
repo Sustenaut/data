@@ -1,10 +1,18 @@
-"""The power-auctions app, as Streamlit runs it:
+"""data.sustenaut.eu, as Streamlit runs it:
 
     soldera app --store ./store         # on a laptop, from a copy of the store
     soldera app --store gs://BUCKET     # as the Cloud Run service does
 
-The page itself is soldera.app.page."""
+Two pages: the landing page at / and the power-auctions app at
+/power-auctions. Each is a page script beside this one; what they draw is in
+soldera.app.page."""
 
-from soldera.app.page import main
+import streamlit as st
 
-main()
+from soldera.app.page import POWER_AUCTIONS
+
+st.navigation(
+    [st.Page("home.py", title="Sustenaut data", default=True),
+     st.Page(POWER_AUCTIONS, title="Power auctions", url_path="power-auctions")],
+    position="hidden",
+).run()

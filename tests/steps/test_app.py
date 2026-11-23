@@ -149,7 +149,7 @@ def kept(app, count, auctions):
     assert ", ".join(sorted({s.auction_id for s in app["kept"]})) == auctions
 
 
-def run_app(app, monkeypatch, env: dict[str, str]) -> None:
+def run_app(app, monkeypatch, env: dict[str, str], page: str | None = "power_auctions.py") -> None:
     from streamlit.testing.v1 import AppTest  # noqa: PLC0415 - only these scenarios need Streamlit
 
     for name in ("SOLDERA_DATABASE", "SOLDERA_STORE", "SOLDERA_PIPELINE"):
@@ -159,12 +159,26 @@ def run_app(app, monkeypatch, env: dict[str, str]) -> None:
     monkeypatch.chdir(REPOSITORY)  # where the pipeline file is
     test = AppTest.from_file(str(APP), default_timeout=60)
     test.run()
+    if page:
+        test.switch_page(page).run()
     app["test"] = test
 
 
 @when("the app is opened on the database")
 def open_app(ctx, app, monkeypatch):
     run_app(app, monkeypatch, {"SOLDERA_DATABASE": str(database(ctx))})
+
+
+@when("the site's landing page is opened")
+def open_landing(ctx, app, monkeypatch):
+    run_app(app, monkeypatch, {"SOLDERA_DATABASE": str(database(ctx))}, page=None)
+
+
+@then(parsers.parse('the landing page links to "{page}" as "{label}"'))
+def links_to(app, page, label):
+    links = [(link.proto.page, link.proto.label) for link in app["test"].get("page_link")]
+    assert any(p.endswith(page) and l == label for p, l in links), links
+    assert not app["test"].exception, [e.value for e in app["test"].exception]
 
 
 @when("the app is opened on an empty store")

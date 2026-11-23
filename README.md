@@ -143,7 +143,9 @@ soldera app --store gs://sustenaut-soldera-store
 ```
 
 `app.Dockerfile` is its image, from `requirements-app.lock` (`make
-runtime-lock` writes both locks).
+runtime-lock` writes both locks). The same server is the whole of
+data.sustenaut.eu: `streamlit_app.py` serves a landing page at `/`, which
+links to each app, and this one at `/power-auctions`.
 
 ## Deploying
 
@@ -160,7 +162,8 @@ everything around it:
 | `soldera.stage_notes` | an external table over every stage run's `notes.parquet` in the bucket |
 | `soldera-ingest` job | one task, never retried, an hour at most, as `soldera-ingest@` |
 | `soldera-ingest-weekly` | Cloud Scheduler in europe-west1 (it has no europe-north1), Thursdays 07:00 Paris time, the morning after EEX's auction day |
-| `soldera-deploy@` | what this repository's workflows act as: push the image, update and run the job, through the custom role `solderaJobDeployer` on that job only |
+| `soldera-deploy@` | what this repository's workflows act as: push the images, update and run the job, through the custom role `solderaJobDeployer` on that job only, and update the app's service, through `solderaServiceDeployer` on it only |
+| `soldera-app` service | data.sustenaut.eu, below |
 
 Workflows:
 
@@ -185,6 +188,43 @@ environment, limited to main, and set the repository variable
 **ingest** once for the backfill. The project needs the Run, Artifact
 Registry, BigQuery, Cloud Scheduler and Storage APIs, which are the base
 stack's.
+
+### Deploying the app
+
+`infra/app.tf` makes the Cloud Run service `soldera-app`, which serves
+data.sustenaut.eu: oauth2-proxy in front, signing people in with the team
+realm at auth.sustenaut.eu and letting in those with the role `data`, and
+the app behind it, which reads the store bucket as `soldera-app@`. The
+**deploy app** workflow builds `app.Dockerfile`, checks that it serves both
+pages, pushes it (and keeps a copy of oauth2-proxy in the `soldera`
+registry), and points the service's app container at it.
+
+The service cannot start without its sign-in secrets and images, so it
+waits for `serve_app`. Once, in order:
+
+1. shared-infra makes the account `soldera-app` and the role
+   `solderaServiceDeployer`, and lets this stack make `soldera-*` services
+   and secrets. After this stack's next apply, the secrets exist, empty.
+2. Put their values in: the team client's secret, which the planning app's
+   secret already holds, and a new cookie key.
+
+   ```sh
+   gcloud secrets versions access latest --secret=plan-oidc-client-secret |
+     gcloud secrets versions add soldera-oidc-client-secret --data-file=-
+   openssl rand -base64 32 | tr -d '\n' | tr -- '+/' '-_' |
+     gcloud secrets versions add soldera-cookie-secret --data-file=-
+   ```
+
+3. Register the site on the team client, as business-plan's
+   `planning/go-live.sh` did for plan: Sustenaut/auth's `register-app.py`
+   with `--redirect https://data.sustenaut.eu/oauth2/callback --logout
+   https://data.sustenaut.eu/ --role data`. Then tick `data` for whoever may
+   see the site at https://auth.sustenaut.eu/realms/team/access.
+4. Run **deploy app** (Actions, Run workflow), which pushes the images.
+5. Set `serve_app = true` (`infra/variables.tf`) in a pull request; its
+   apply makes the service. Then set the repository variable
+   `APP_SERVICE=on`, so each deploy updates the service.
+6. shared-infra maps data.sustenaut.eu to `soldera-app`.
 
 `make lock` also writes `requirements.lock`, the image's packages at the
 suite's versions, with hashes.
