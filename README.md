@@ -133,14 +133,16 @@ Workflows:
   `to` and `force`, and fails when the job does. The run log rows link back
   to the workflow run.
 
-To turn it on: the base stack's pool must admit `Sustenaut/soldera` and make
-its Terraform account; set the repository variables
-`GCP_WORKLOAD_IDENTITY_PROVIDER` and `TERRAFORM_SERVICE_ACCOUNT`, make the
-environments `terraform` and `deploy` limited to main, and set
-`TERRAFORM_CI=on`. After the first apply, set `GCP_DEPLOY_SERVICE_ACCOUNT` to
-the `deploy_service_account` output and `DEPLOY_CI=on`. The project needs the
-Run, Artifact Registry, BigQuery, Cloud Scheduler and Storage APIs, which
-are the base stack's.
+To turn it on, once (shared-infra owns the pool): add `soldera` to
+`github_repositories`, so the pool's `github` provider admits main's runs
+here, and add soldera to `terraform_stacks` (account `terraform-soldera`,
+owner id 343693649, repository id 1467291589), so its `github-terraform`
+provider admits the `terraform` environment. Then make the `terraform`
+environment, limited to main, and set the repository variable
+`TERRAFORM_CI=on`; after the first apply, set `DEPLOY_CI=on` and run
+**ingest** once for the backfill. The project needs the Run, Artifact
+Registry, BigQuery, Cloud Scheduler and Storage APIs, which are the base
+stack's.
 
 `make lock` also writes `requirements.lock`, the image's packages at the
 suite's versions, with hashes.

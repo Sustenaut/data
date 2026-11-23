@@ -11,7 +11,7 @@ terraform {
   # One state bucket for every repository, one prefix each (pubhost's README,
   # "One stack per repository"). The bucket is the base stack's.
   backend "gcs" {
-    bucket = "TODO-state-bucket" # TODO(David): the base stack's state bucket
+    bucket = "sustenaut-tfstate"
     prefix = "soldera"
   }
 }

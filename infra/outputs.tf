@@ -19,11 +19,11 @@ output "run_log" {
 }
 
 output "deploy_service_account" {
-  description = "The account GitHub Actions in Sustenaut/soldera deploy and re-run as: the repository variable GCP_DEPLOY_SERVICE_ACCOUNT."
+  description = "The account GitHub Actions in Sustenaut/soldera deploy and re-run as, named in deploy.yml and ingest.yml."
   value       = google_service_account.deploy.email
 }
 
 output "workload_identity_provider" {
-  description = "The provider the deploy and ingest workflows authenticate through, when its id is the pool's: the repository variable GCP_WORKLOAD_IDENTITY_PROVIDER."
+  description = "The provider the deploy and ingest workflows authenticate through, whose id is the pool's."
   value       = "projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/${var.workload_identity_pool}/providers/${var.workload_identity_pool}"
 }
