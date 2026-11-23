@@ -29,12 +29,15 @@ lock:
 	./pubrules lock
 	$(MAKE) runtime-lock
 
-# The image's packages: pyproject.toml's dependencies, at the versions the
-# suite's lock pins, with hashes, for Linux on x86_64.
+# The images' packages: pyproject.toml's dependencies, at the versions the
+# suite's lock pins, with hashes, for Linux on x86_64. requirements.lock is
+# the ingest job's; requirements-app.lock adds the app extra, for the app's.
 runtime-lock:
 	grep -E '^[A-Za-z0-9_.-]+==' tests/requirements.lock | sed 's/ .*//' > .runtime-constraints.txt
 	uv pip compile pyproject.toml -c .runtime-constraints.txt --generate-hashes --no-header -q \
 	  --python-version 3.13 --python-platform x86_64-manylinux_2_28 -o requirements.lock
+	uv pip compile pyproject.toml --extra app -c .runtime-constraints.txt --generate-hashes --no-header -q \
+	  --python-version 3.13 --python-platform x86_64-manylinux_2_28 -o requirements-app.lock
 	rm .runtime-constraints.txt
 
 sync-check:

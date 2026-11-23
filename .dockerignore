@@ -1,5 +1,6 @@
 *
 !requirements.lock
+!requirements-app.lock
 !src/
 !pipelines/
 !corrections/

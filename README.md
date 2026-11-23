@@ -26,7 +26,11 @@ find or copy the newest published output of a stage:
 bin/soldera output PIPELINE.yaml merge                                   # its path
 bin/soldera output PIPELINE.yaml merge --copy-to power-auctions.duckdb   # a copy
 bin/soldera output PIPELINE.yaml discover --name page.html               # one of several
+bin/soldera output PIPELINE.yaml merge --store gs://sustenaut-soldera-store --copy-to power-auctions.duckdb
 ```
+
+The last reads the bucket over its API with Google's application default
+credentials, as the app does.
 
 Run log rows go to `runs.jsonl`, or to BigQuery with
 `--run-log bigquery:PROJECT.DATASET.TABLE` (`SOLDERA_RUN_LOG`). The table's
@@ -106,6 +110,40 @@ every rule against its excerpt (the tests run it too):
 ```sh
 bin/soldera corrections check corrections/eex-french-power-auctions.yaml
 ```
+
+## The app
+
+`src/soldera/app` is data.sustenaut.eu/power-auctions: a Streamlit app on
+the newest database the merge stage published. EEX publishes one
+volume-weighted average price per auction, region and technology, so a
+*segment* (one region and technology in one auction) is what every plot is
+drawn from. Segments that sold nothing have no price; the plots leave them
+out and the table under each plot counts them.
+
+- **Price distribution:** each technology's segment prices on shared bins,
+  counted once or by the MWh they sold, as a share of the technology or
+  absolute, one panel each or overlaid; the number of bins, and equal-width
+  or logarithmic bins.
+- **Prices over time:** one point per auction and technology, with the
+  lowest, 10th percentile, median, mean, 90th percentile and highest of its
+  regional prices, weighted by MWh or not; the 10th to 90th percentile
+  shaded; a hover with that technology's statistics or every technology's.
+- **Filters**, for both: dates (auction date or production month),
+  technologies, regions, and under *Auction conditions* EEX's auction
+  numbers, the share of the offer that sold, the number of bidders, and a
+  minimum MWh per segment.
+
+`data.py` holds the numbers and is tested without Streamlit; `page.py` draws
+them. To run it on a copy of the store, or on the bucket itself:
+
+```sh
+pip install -e '.[app]'          # or the suite's .venv, which has them
+soldera app --store ./store      # then open http://localhost:8501
+soldera app --store gs://sustenaut-soldera-store
+```
+
+`app.Dockerfile` is its image, from `requirements-app.lock` (`make
+runtime-lock` writes both locks).
 
 ## Deploying
 
