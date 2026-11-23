@@ -8,11 +8,12 @@
 # stack's, found here by their fixed names; this stack never reads its state.
 
 locals {
-  gcp        = jsondecode(file("${path.module}/../pubrules.json")).hosting.providers["gcp"]
-  project    = local.gcp.project
-  region     = local.gcp.region
-  repository = "Sustenaut/soldera"
-  image      = "${local.region}-docker.pkg.dev/${local.project}/${google_artifact_registry_repository.soldera.repository_id}/ingest"
+  gcp              = jsondecode(file("${path.module}/../pubrules.json")).hosting.providers["gcp"]
+  project          = local.gcp.project
+  region           = local.gcp.region
+  scheduler_region = "europe-west1"
+  repository       = "Sustenaut/soldera"
+  image            = "${local.region}-docker.pkg.dev/${local.project}/${google_artifact_registry_repository.soldera.repository_id}/ingest"
   note_fields = ["note_id", "run_id", "pipeline", "stage", "parser_name", "parser_version", "item_key",
   "severity", "kind", "subject", "message", "source_key", "source_sha256"]
   run_log = "${local.project}.${google_bigquery_dataset.soldera.dataset_id}.${google_bigquery_table.pipeline_stage_runs.table_id}"
@@ -280,9 +281,11 @@ resource "google_cloud_run_v2_job_iam_member" "scheduler_runs_ingest" {
 
 # EEX holds each month's auction on a Wednesday and publishes its results
 # the same day; Thursday morning finds them.
+# Cloud Scheduler has no europe-north1; the nearest region it runs in calls
+# the job in europe-north1 just the same.
 resource "google_cloud_scheduler_job" "ingest_weekly" {
   name        = "soldera-ingest-weekly"
-  region      = local.region
+  region      = local.scheduler_region
   description = "Runs soldera-ingest every Thursday morning."
   schedule    = "0 7 * * 4"
   time_zone   = "Europe/Paris"
@@ -340,7 +343,8 @@ resource "google_service_account_iam_member" "deploy_acts_as_ingest" {
 # The first apply made the job but could not read it back (2026-11-23), so
 # its state was marked tainted and every plan after would replace it, which
 # deletion_protection forbids. Forgetting that entry and importing the job
-# under a new address keeps the job as it is. Both blocks can go once applied.
+# under a new address keeps the job as it is. The registry was made by the
+# same run, which could not wait for it. These blocks can go once applied.
 removed {
   from = google_cloud_run_v2_job.ingest
 
@@ -352,4 +356,9 @@ removed {
 import {
   to = google_cloud_run_v2_job.ingest_job
   id = "projects/sustenaut/locations/europe-north1/jobs/soldera-ingest"
+}
+
+import {
+  to = google_artifact_registry_repository.soldera
+  id = "projects/sustenaut/locations/europe-north1/repositories/soldera"
 }
