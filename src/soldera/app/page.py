@@ -448,17 +448,25 @@ def hover_all(points: list[dict]) -> str:
 
 def landing() -> None:
     """data.sustenaut.eu itself: what the site is, and a block per kind of data."""
-    st.set_page_config(page_title="Sustenaut data", layout="wide")
-    st.title("Sustenaut data")
+    st.set_page_config(page_title="Sustenaut data", page_icon=":material/eco:", layout="wide")
+    st.title(":green[:material/eco:] Sustenaut data")
     st.markdown("Data on renewable energy markets, collected from their publishers, checked, "
                 "and kept with a record of where each figure came from.")
-    st.subheader("Auction results")
+    st.subheader(":orange[:material/gavel:] Auction results")
     with st.container(border=True):
-        st.page_link(power_auctions_page(), label="French guarantees of origin auctions", icon=":material/bar_chart:")
+        st.page_link(power_auctions_page(), label="French guarantees of origin auctions", icon="🇫🇷")
         st.markdown(
             "The monthly auctions in which the French state sells the guarantees of origin of the "
             "renewable power it supports, run by EEX. Prices by technology and region since the first "
-            "auction: how they are distributed, and how they moved from one auction to the next.")
+            "auction: how they are distributed, how they moved from one auction to the next, and where.")
+        # The technologies in Streamlit's nearest colours to the plots' (the badges take no other).
+        st.markdown(":blue-badge[:material/air: Wind] :orange-badge[:material/sunny: Solar] "
+                    ":green-badge[:material/water_drop: Hydro] :red-badge[:material/local_fire_department: Thermal] "
+                    ":gray-badge[12 regions] :gray-badge[Monthly since 2019]")
+        pages = st.columns(3)
+        pages[0].markdown(":blue[:material/bar_chart:] **Price distribution**  \nHow the prices spread, by technology")
+        pages[1].markdown(":orange[:material/show_chart:] **Prices over time**  \nEach auction's prices, one after another")
+        pages[2].markdown(":green[:material/map:] **By region**  \nA map of France, region by region")
 
 
 def power_auctions_page() -> st.Page:
