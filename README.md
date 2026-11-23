@@ -151,6 +151,10 @@ stack's.
 `make lock` also writes `requirements.lock`, the image's packages at the
 suite's versions, with hashes.
 
+When a run fails, start with [docs/runbook.md](docs/runbook.md): the run log's
+views (`soldera.runs`, `soldera.stage_runs_latest`, `soldera.failed_items`)
+and how to trace a run back to its commit and parser.
+
 ## How a stage runs
 
 `src/soldera/core/runner.py` is the runner. For each stage it asks the parser
