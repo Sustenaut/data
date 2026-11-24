@@ -1,9 +1,20 @@
-# Builds the app's image (app.Dockerfile) from main, checks that it serves
-# the landing page and the go-auctions page, pushes it, keeps a copy of
-# oauth2-proxy beside it, and points the data-app service's app container
-# at it. It runs as data-deploy (infra/), like deploy-ingest.yml, and waits for
-# the same repository variable DEPLOY_CI. Until infra/'s serve_app is true
-# there is no service: it then pushes the images, which the service's first
+# Builds the app's image (app.Dockerfile), checks that it serves the landing
+# page and the go-auctions page, pushes it, keeps a copy of oauth2-proxy
+# beside it, and points an environment's service's app container at it
+# (infra/app.tf):
+#
+#   live     data.sustenaut.eu, service data-app: every push to main, as
+#            data-deploy through the pool github.
+#   NAME     data-NAME.sustenaut.eu, service data-app-NAME, for each NAME in
+#            infra/environments.json: each push to a pull request labelled
+#            deploy-to-NAME, and when the label is added, as data-preview
+#            through the pool github-preview. Pull requests from forks get
+#            no credentials, so they never deploy.
+#
+# It waits for the repository variable DEPLOY_CI, like deploy-ingest.yml, and
+# pull requests' deploys also for ENVIRONMENTS, set to on once infra/'s
+# environments_ready is true. Until infra/'s serve_app is true there is no
+# service: main's run then pushes the images, which the service's first
 # revision starts from, and stops there. The repository variable APP_SERVICE
 # set to on (once the service exists) turns the last step on.
 name: deploy app
@@ -12,6 +23,8 @@ on:
   push:
     branches: [main]
     paths: [src/**, pipelines/**, .streamlit/**, app.Dockerfile, .dockerignore, requirements-app.lock, .github/workflows/deploy-app.yml]
+  pull_request:
+    types: [labeled, synchronize, reopened]
   workflow_dispatch:
     inputs:
       no-cache:
@@ -21,12 +34,8 @@ on:
 
 permissions: { contents: read, id-token: write }
 
-concurrency: { group: deploy-data-app, cancel-in-progress: false }
-
 env:
   REGION: europe-north1
-  IMAGE: europe-north1-docker.pkg.dev/sustenaut/data/app
-  SERVICE: data-app
   # oauth2-proxy, the service's front container (infra/app.tf), by its
   # digest: Cloud Run does not pull from quay.io, so this keeps a copy of
   # exactly that release in this stack's registry. The planning app's release.
@@ -34,18 +43,75 @@ env:
   PROXY: europe-north1-docker.pkg.dev/sustenaut/data/oauth2-proxy:v7.15.5
 
 jobs:
-  deploy:
-    if: vars.DEPLOY_CI == 'on' && github.ref == 'refs/heads/main'
+  # Which environments this run deploys to: live from main; from a pull
+  # request, those its deploy-to-NAME labels name (only the one just added,
+  # when a label is), and nothing for a NAME environments.json lacks.
+  where:
+    if: >-
+      vars.DEPLOY_CI == 'on' && (
+        (github.event_name != 'pull_request' && github.ref == 'refs/heads/main') ||
+        (github.event_name == 'pull_request' && vars.ENVIRONMENTS == 'on' &&
+         github.event.pull_request.head.repo.full_name == github.repository))
     runs-on: ubuntu-latest
+    outputs:
+      environments: ${{ steps.pick.outputs.environments }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          sparse-checkout: infra/environments.json
+          sparse-checkout-cone-mode: false
+      - id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          ADDED: ${{ github.event.label.name }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          if [[ "$EVENT" != pull_request ]]; then
+            picked='["live"]'
+          elif [[ "$ACTION" == labeled ]]; then
+            picked=$(jq -c --arg added "$ADDED" '[$added | select(startswith("deploy-to-")) | ltrimstr("deploy-to-")]' <<<'null')
+          else
+            picked=$(jq -c '[.[] | select(startswith("deploy-to-")) | ltrimstr("deploy-to-")]' <<<"$LABELS")
+          fi
+          # live comes from main alone, never from a label.
+          known=$(jq -c . infra/environments.json)
+          if [[ "$EVENT" == pull_request ]]; then
+            environments=$(jq -c --argjson known "$known" '[.[] | select(. as $n | $n != "live" and ($known | index($n)))]' <<<"$picked")
+          else
+            environments=$picked
+          fi
+          echo "Deploying to: $environments"
+          echo "environments=$environments" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: where
+    if: needs.where.outputs.environments != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(needs.where.outputs.environments) }}
+    # One deploy at a time per environment: two pull requests labelled for
+    # the same one queue, and the later push wins.
+    concurrency: { group: "deploy-data-app-${{ matrix.environment }}", cancel-in-progress: false }
+    env:
+      LIVE: ${{ matrix.environment == 'live' }}
+      SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      IMAGE: europe-north1-docker.pkg.dev/sustenaut/data/${{ matrix.environment == 'live' && 'app' || 'app-preview' }}
+      SERVICE: ${{ matrix.environment == 'live' && 'data-app' || format('data-app-{0}', matrix.environment) }}
+      SITE: ${{ matrix.environment == 'live' && 'data.sustenaut.eu' || format('data-{0}.sustenaut.eu', matrix.environment) }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ env.SHA }}
 
       - uses: Sustenaut/pubhost/actions/docker-build@cd88da2277ef8772744e14c38df24b350ee2cacb # v0.2.0
         with:
-          tags: ${{ env.IMAGE }}:${{ github.sha }}
+          tags: ${{ env.IMAGE }}:${{ env.SHA }}
           scope: data-app
           file: app.Dockerfile
-          build-args: DATA_COMMIT=${{ github.sha }}
+          build-args: DATA_COMMIT=${{ env.SHA }}
           no-cache: ${{ inputs.no-cache || false }}
 
       # Streamlit answers its health check once it serves, and every page
@@ -53,7 +119,7 @@ jobs:
       # websocket, which the suite's AppTest scenarios cover.
       - name: The image serves the app
         run: |
-          docker run -d --name app -p 8080:8080 "$IMAGE:$GITHUB_SHA"
+          docker run -d --name app -p 8080:8080 "$IMAGE:$SHA"
           for i in $(seq 1 30); do curl -fs localhost:8080/_stcore/health && break; sleep 1; done
           curl -fs localhost:8080/_stcore/health
           curl -fs localhost:8080/ | grep -q '<div id="root">'
@@ -62,17 +128,20 @@ jobs:
 
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
-          workload_identity_provider: projects/948171295184/locations/global/workloadIdentityPools/github/providers/github
-          service_account: data-deploy@sustenaut.iam.gserviceaccount.com
+          workload_identity_provider: ${{ env.LIVE == 'true' && 'projects/948171295184/locations/global/workloadIdentityPools/github/providers/github' || 'projects/948171295184/locations/global/workloadIdentityPools/github-preview/providers/github-preview' }}
+          service_account: ${{ env.LIVE == 'true' && 'data-deploy@sustenaut.iam.gserviceaccount.com' || 'data-preview@sustenaut.iam.gserviceaccount.com' }}
 
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
+      # latest is live's: the image a new live service starts from.
       - name: Push the images
         run: |
           gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
-          docker push "$IMAGE:$GITHUB_SHA"
-          docker tag "$IMAGE:$GITHUB_SHA" "$IMAGE:latest"
-          docker push "$IMAGE:latest"
+          docker push "$IMAGE:$SHA"
+          if [[ "$LIVE" == true ]]; then
+            docker tag "$IMAGE:$SHA" "$IMAGE:latest"
+            docker push "$IMAGE:latest"
+          fi
           if ! docker manifest inspect "$PROXY" >/dev/null 2>&1; then
             docker pull "$PROXY_FROM"
             docker tag "$PROXY_FROM" "$PROXY"
@@ -84,5 +153,5 @@ jobs:
       - name: Deploy it to the service
         if: vars.APP_SERVICE == 'on'
         run: |
-          gcloud run deploy "$SERVICE" --region "$REGION" --quiet --container app --image "$IMAGE:$GITHUB_SHA"
-          echo "Deployed \`$IMAGE:$GITHUB_SHA\` to the Cloud Run service \`$SERVICE\`." >> "$GITHUB_STEP_SUMMARY"
+          gcloud run deploy "$SERVICE" --region "$REGION" --quiet --container app --image "$IMAGE:$SHA"
+          echo "Deployed \`$IMAGE:$SHA\` to \`$SERVICE\`, https://$SITE/." >> "$GITHUB_STEP_SUMMARY"

@@ -16,6 +16,12 @@ variable "serve_app" {
   default     = true
 }
 
+variable "environments_ready" {
+  description = "Whether the environments in environments.json get their services, and pull requests their deploy account. shared-infra makes that account (data-preview) and the pool github-preview it signs in through; set this to true once they exist (docs/operations.md, \"Environments\")."
+  type        = bool
+  default     = false
+}
+
 # Set by ./pubsec run (the terraform workflow, or ./with-secrets on a laptop)
 # from the Bitwarden project Sustenaut, for the names infra/app.tf lists.
 variable "secret_values" {

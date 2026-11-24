@@ -39,12 +39,47 @@ the accounts and custom roles above, the Terraform account
 | **ci** (`pr.yml`, `main.yml`) | each pull request and push to main | pubrules' checks, the suite, Terraform plan, SonarQube Cloud |
 | **terraform** | pushes to main that touch `infra/`, or by hand | applies `infra/` as `terraform-data` (pubhost's workflow, secrets through pubsec). An apply that destroys or replaces a resource needs the label `terraform-destroy` on its pull request |
 | **deploy ingest pipeline** | pushes to main that touch the pipeline | builds and checks the ingest image, points the job at it, and runs the job with `--from auto`, which does nothing when every stage is current |
-| **deploy app** | pushes to main that touch the app | builds the app image, checks it serves both pages, and points the service's app container at it |
+| **deploy app** | pushes to main that touch the app, and pull requests labelled `deploy-to-NAME` | builds the app image, checks it serves both pages, and points an environment's service's app container at it: live from main, NAME from a pull request (below, "Environments") |
+| **labels** | pushes to main that touch `infra/environments.json` | makes a label `deploy-to-NAME` for each environment |
 | **run ingest pipeline** | by hand (Actions, Run workflow) | runs the job now with `from`, `to` and `force`, and fails when it does |
 | **debug markers** | pull requests, main, and each closed issue | fails while temporary code marked `DEBUG(#N)` names a closed issue |
 
 Repository variables gate them: `TERRAFORM_CI`, `DEPLOY_CI` and
-`APP_SERVICE` must be `on`.
+`APP_SERVICE` must be `on`, and `ENVIRONMENTS` too for pull requests'
+deploys.
+
+## Environments
+
+The app runs live and in each environment `infra/environments.json` names,
+each its own Cloud Run service at its own address:
+
+| Environment | Address | Service | Deployed by |
+| --- | --- | --- | --- |
+| live | data.sustenaut.eu | `data-app` | each push to main, as `data-deploy` |
+| staging | data-staging.sustenaut.eu | `data-app-staging` | a pull request with the label `deploy-to-staging` |
+| branch | data-branch.sustenaut.eu | `data-app-branch` | a pull request with the label `deploy-to-branch` |
+
+Adding the label deploys the pull request's head, and each push to it
+deploys again while the label is on. Only someone who can label a pull request
+can deploy one, and pull requests from forks never get credentials. Pull
+requests deploy as `data-preview`, through shared-infra's pool
+`github-preview`, which admits only this repository's pull request runs. That
+account can deploy no live service, and pushes its images as `app-preview`.
+Every environment signs people in at auth.sustenaut.eu with the role `data`,
+and reads the same store, so staging is also the way in while live is down
+(runbook, "The site is down").
+
+To add an environment NAME:
+
+1. Here, add NAME to `infra/environments.json`. The apply makes its service
+   and the **labels** workflow its label.
+2. In shared-infra, add the site `data-NAME` to `pubrules.json`, with
+   `"kind": "cloud-run"` and `"service": "data-app-NAME"`. Its apply makes the
+   DNS records and the domain mapping, and Google issues the certificate
+   within the hour.
+3. Register its address on the team client: `register-app.py --redirect
+   https://data-NAME.sustenaut.eu/oauth2/callback --logout
+   https://data-NAME.sustenaut.eu/ --role data` (step 4 below).
 
 ## Coding conventions, and how they are enforced
 
@@ -104,6 +139,11 @@ project or a rebuild:
 7. shared-infra maps data.sustenaut.eu to the service. Its Terraform account
    must be an Owner of sustenaut.eu in Search Console (Settings, Users and
    permissions).
+8. For the environments: shared-infra makes the pool `github-preview` and the
+   account `data-preview`. A pull request here then sets
+   `environments_ready = true`, and once it has applied, set
+   `ENVIRONMENTS=on`. shared-infra maps each environment's address, and each is
+   registered on the team client (above, "Environments").
 
 On a laptop, `./with-secrets terraform -chdir=infra plan` plans with the
 secrets, as CI does.
