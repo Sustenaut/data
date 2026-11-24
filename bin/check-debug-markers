@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""check-debug-markers: fail while temporary code outlives its reason.
+
+Temporary code (debugging aids, workarounds) carries a comment marker
+DEBUG(#N), where N is the open issue that says why it is there and when it
+goes. This fails on a marker without an issue number, and on one whose issue
+is closed: closing the issue forces the code out. `bin/check-debug-markers
+--list` lists the markers without asking GitHub.
+
+Needs GITHUB_REPOSITORY (owner/name) and GH_TOKEN (read access to issues).
+"""
+
+import json
+import os
+import re
+import subprocess
+import sys
+import urllib.request
+
+MARKER = re.compile(r"DEBUG\((#(\d+))?")
+SELF = {"bin/check-debug-markers", ".github/workflows/debug-markers.yml"}
+
+
+def markers():
+    files = subprocess.run(["git", "ls-files", "-z"], capture_output=True, check=True).stdout.decode().split("\0")
+    for path in sorted(f for f in files if f and f not in SELF and os.path.isfile(f)):
+        try:
+            lines = open(path, encoding="utf-8").read().splitlines()
+        except UnicodeDecodeError:
+            continue
+        for number, line in enumerate(lines, 1):
+            for found in MARKER.finditer(line):
+                yield path, number, found.group(2), line.strip()
+
+
+def state(repo, issue, token):
+    request = urllib.request.Request(f"https://api.github.com/repos/{repo}/issues/{issue}",
+                                     headers={"Authorization": f"Bearer {token}",
+                                              "Accept": "application/vnd.github+json"})
+    with urllib.request.urlopen(request, timeout=30) as answer:
+        return json.load(answer)["state"]
+
+
+def main():
+    found = list(markers())
+    if "--list" in sys.argv[1:]:
+        for path, number, issue, line in found:
+            print(f"{path}:{number}: {line}")
+        return 0
+    repo, token = os.environ.get("GITHUB_REPOSITORY"), os.environ.get("GH_TOKEN")
+    if not repo or not token:
+        print("check-debug-markers: GITHUB_REPOSITORY and GH_TOKEN must be set", file=sys.stderr)
+        return 2
+    problems, states = [], {}
+    for path, number, issue, line in found:
+        if issue is None:
+            problems.append(f"{path}:{number}: a DEBUG marker needs an issue: DEBUG(#N)")
+            continue
+        if issue not in states:
+            states[issue] = state(repo, issue, token)
+        if states[issue] != "open":
+            problems.append(f"{path}:{number}: issue #{issue} is {states[issue]}, so this temporary code must go")
+    for problem in problems:
+        print(problem, file=sys.stderr)
+    print(f"{len(found)} DEBUG markers, {len(problems)} problems")
+    return 1 if problems else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
