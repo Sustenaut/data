@@ -1,19 +1,32 @@
-# Builds the ingest image from main, checks that it starts, pushes it, and
-# points the data-ingest job at it. It runs as data-deploy (infra/),
-# which can do that and nothing else. Google admits main's runs of the
-# repositories in shared-infra's github_repositories through the pool's github
-# provider, so this runs from main only. Nothing runs until the repository
-# variable DEPLOY_CI is on, which waits for the first terraform apply. Then
-# it runs the job from the first stage whose parser changed, if any. Once the
-# environments are on (ENVIRONMENTS), it does the same for each environment
-# with its own data (infra/environments.json, "data": "own"), so staging, and
-# branch, which reads staging's data, are back on main's pipeline.
+# Builds the ingest image, checks that it starts, pushes it, points an
+# environment's ingest job at it, and runs the job from the first stage whose
+# parser changed, if any. Where it deploys is bin/deploy-environments
+# ingest's answer:
+#
+#   main     every push that touches the pipeline: live's job data-ingest,
+#            and, once ENVIRONMENTS is on, the job data-ingest-NAME of each
+#            environment with its own data (infra/environments.json,
+#            "data": "own"), so staging, and branch, which reads staging's
+#            data, are back on main's pipeline. As data-deploy, through the
+#            pool github, which admits main's runs only.
+#   a pull   labelled deploy-to-NAME, for each push and when the label is
+#   request  added, if NAME has its own data: the pull request's pipeline in
+#            data-ingest-NAME, as data-preview through the pool github-preview,
+#            which can reach no live job. Pull requests from forks get no
+#            credentials, so they never deploy.
+#
+# The ingest code only: deploy-app.yml deploys the app, from the same labels.
+# Nothing runs until the repository variable DEPLOY_CI is on, which waits for
+# the first terraform apply, and pull requests' deploys also wait for
+# ENVIRONMENTS.
 name: deploy ingest pipeline
 
 on:
   push:
     branches: [main]
-    paths: [src/ingest/**, pipelines/**, corrections/**, Dockerfile, .dockerignore, requirements.lock, infra/environments.json, .github/workflows/deploy-ingest.yml]
+    paths: [src/ingest/**, pipelines/**, corrections/**, Dockerfile, .dockerignore, requirements.lock, infra/environments.json, bin/deploy-environments, .github/workflows/deploy-ingest.yml]
+  pull_request:
+    types: [labeled, synchronize, reopened]
   workflow_dispatch:
     inputs:
       no-cache:
@@ -21,68 +34,94 @@ on:
         type: boolean
         default: false
 
-permissions: { contents: read, id-token: write }
-
-concurrency: { group: deploy-data-ingest, cancel-in-progress: false }
+permissions: {}
 
 env:
   REGION: europe-north1
-  IMAGE: europe-north1-docker.pkg.dev/sustenaut/data/ingest
-  JOB: data-ingest
   PIPELINE: pipelines/eex-french-go-auctions.yaml
 
 jobs:
-  deploy:
-    if: vars.DEPLOY_CI == 'on' && github.ref == 'refs/heads/main'
+  # Where this run deploys to (bin/deploy-environments).
+  where:
+    if: >-
+      vars.DEPLOY_CI == 'on' && (
+        (github.event_name != 'pull_request' && github.ref == 'refs/heads/main') ||
+        (github.event_name == 'pull_request' && vars.ENVIRONMENTS == 'on' &&
+         github.event.pull_request.head.repo.full_name == github.repository))
     runs-on: ubuntu-latest
-    timeout-minutes: 150 # live's run, then each environment's
+    permissions: { contents: read }
+    outputs:
+      environments: ${{ steps.pick.outputs.environments }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          ADDED: ${{ github.event.label.name }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          ENVIRONMENTS: ${{ vars.ENVIRONMENTS }}
+        run: |
+          environments=$(bin/deploy-environments ingest)
+          echo "Deploying the pipeline to: $environments"
+          echo "environments=$environments" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: where
+    if: needs.where.outputs.environments != '[]'
+    runs-on: ubuntu-latest
+    permissions: { contents: read, id-token: write }
+    timeout-minutes: 80 # an environment's first run builds every stage
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(needs.where.outputs.environments) }}
+    # One deploy at a time per job: two pull requests labelled for the same
+    # environment queue, and the later push wins.
+    concurrency: { group: "deploy-data-ingest-${{ matrix.environment.name }}", cancel-in-progress: false }
+    env:
+      PULL_REQUEST: ${{ github.event_name == 'pull_request' }}
+      SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      # A pull request's images are its own, so main's keep their cleanup count.
+      IMAGE: europe-north1-docker.pkg.dev/sustenaut/data/${{ github.event_name == 'pull_request' && 'ingest-preview' || 'ingest' }}
+      JOB: ${{ matrix.environment.live && 'data-ingest' || format('data-ingest-{0}', matrix.environment.name) }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ env.SHA }}
 
       - uses: Sustenaut/pubhost/actions/docker-build@cd88da2277ef8772744e14c38df24b350ee2cacb # v0.2.0
         with:
-          tags: ${{ env.IMAGE }}:${{ github.sha }}
+          tags: ${{ env.IMAGE }}:${{ env.SHA }}
           scope: data-ingest
-          build-args: DATA_COMMIT=${{ github.sha }}
+          build-args: DATA_COMMIT=${{ env.SHA }}
           no-cache: ${{ inputs.no-cache || false }}
 
       - name: The image starts and reads its pipeline
         run: |
-          docker run --rm "$IMAGE:$GITHUB_SHA" --version
-          docker run --rm "$IMAGE:$GITHUB_SHA" corrections check corrections/eex-french-go-auctions.yaml
+          docker run --rm "$IMAGE:$SHA" --version
+          docker run --rm "$IMAGE:$SHA" corrections check corrections/eex-french-go-auctions.yaml
 
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
-          workload_identity_provider: projects/948171295184/locations/global/workloadIdentityPools/github/providers/github
-          service_account: data-deploy@sustenaut.iam.gserviceaccount.com
+          workload_identity_provider: ${{ env.PULL_REQUEST == 'true' && 'projects/948171295184/locations/global/workloadIdentityPools/github-preview/providers/github-preview' || 'projects/948171295184/locations/global/workloadIdentityPools/github/providers/github' }}
+          service_account: ${{ env.PULL_REQUEST == 'true' && 'data-preview@sustenaut.iam.gserviceaccount.com' || 'data-deploy@sustenaut.iam.gserviceaccount.com' }}
 
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Push the image and deploy it to the job
         run: |
           gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
-          docker push "$IMAGE:$GITHUB_SHA"
-          gcloud run jobs update "$JOB" --region "$REGION" --image "$IMAGE:$GITHUB_SHA" --quiet
-          echo "Deployed \`$IMAGE:$GITHUB_SHA\` to the Cloud Run job \`$JOB\`." >> "$GITHUB_STEP_SUMMARY"
+          docker push "$IMAGE:$SHA"
+          gcloud run jobs update "$JOB" --region "$REGION" --image "$IMAGE:$SHA" --quiet
+          echo "Deployed \`$IMAGE:$SHA\` to the Cloud Run job \`$JOB\`." >> "$GITHUB_STEP_SUMMARY"
 
       # --from auto runs from the first stage whose pin has no stored run (or
-      # that read older input), and does nothing at all when every stage is current.
+      # that read older input), and does nothing at all when every stage is
+      # current. An environment's apps show the new data once it ends.
       - name: Rebuild the stages whose parser changed
         run: |
           echo "data run $PIPELINE --from auto --trigger deploy" >> "$GITHUB_STEP_SUMMARY"
           gcloud run jobs execute "$JOB" --region "$REGION" --wait \
             --args="run,$PIPELINE,--from,auto,--trigger,deploy" \
-            --update-env-vars="GITHUB_REPOSITORY=$GITHUB_REPOSITORY,GITHUB_RUN_ID=$GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT=$GITHUB_RUN_ATTEMPT,GITHUB_WORKFLOW=$GITHUB_WORKFLOW,GITHUB_SHA=$GITHUB_SHA,GITHUB_ACTOR=$GITHUB_ACTOR"
-
-      # The environments with their own data get main's pipeline too,
-      # replacing whatever a pull request last deployed there.
-      - name: The same for the environments with their own data
-        if: vars.ENVIRONMENTS == 'on'
-        run: |
-          for name in $(jq -r 'to_entries[] | select(.value.data == "own") | .key' infra/environments.json); do
-            gcloud run jobs update "$JOB-$name" --region "$REGION" --image "$IMAGE:$GITHUB_SHA" --quiet
-            echo "Deployed \`$IMAGE:$GITHUB_SHA\` to \`$JOB-$name\`, then ran it --from auto." >> "$GITHUB_STEP_SUMMARY"
-            gcloud run jobs execute "$JOB-$name" --region "$REGION" --wait \
-              --args="run,$PIPELINE,--from,auto,--trigger,deploy" \
-              --update-env-vars="GITHUB_REPOSITORY=$GITHUB_REPOSITORY,GITHUB_RUN_ID=$GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT=$GITHUB_RUN_ATTEMPT,GITHUB_WORKFLOW=$GITHUB_WORKFLOW,GITHUB_SHA=$GITHUB_SHA,GITHUB_ACTOR=$GITHUB_ACTOR"
-          done
+            --update-env-vars="GITHUB_REPOSITORY=$GITHUB_REPOSITORY,GITHUB_RUN_ID=$GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT=$GITHUB_RUN_ATTEMPT,GITHUB_WORKFLOW=$GITHUB_WORKFLOW,GITHUB_SHA=$SHA,GITHUB_ACTOR=$GITHUB_ACTOR"

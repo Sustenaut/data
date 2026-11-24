@@ -1,7 +1,7 @@
 # What an environment with "data": "own" in environments.json has of its
 # own (app.tf has its service): a store, a run log with the runbook's views,
-# and an ingest job. A pull request deployed to it (deploy-app.yml) also
-# deploys its ingest image to that job and runs it with --from auto, so
+# and an ingest job. A pull request deployed to it also deploys its ingest
+# image to that job (deploy-ingest.yml) and runs it with --from auto, so
 # pipeline changes are tried on its own data before they reach live's. Each
 # push to main deploys main's ingest image to it too, as it does to live's
 # (deploy-ingest.yml), so the environments that read its data (branch reads

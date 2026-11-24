@@ -1,7 +1,7 @@
 # Builds the app's image (app.Dockerfile), checks that it serves the landing
 # page and the go-auctions page, pushes it, keeps a copy of oauth2-proxy
 # beside it, and points an environment's service's app container at it
-# (infra/app.tf):
+# (infra/app.tf). Where it deploys is bin/deploy-environments app's answer:
 #
 #   live     data.sustenaut.eu, service data-app: every push to main, as
 #            data-deploy through the pool github.
@@ -9,10 +9,10 @@
 #            infra/environments.json: each push to a pull request labelled
 #            deploy-to-NAME, and when the label is added, as data-preview
 #            through the pool github-preview. Pull requests from forks get
-#            no credentials, so they never deploy. An environment with
-#            "data": "own" (staging) also gets the pull request's ingest image
-#            in its own job, data-ingest-NAME, which then runs
-#            (infra/environments.tf); the others (branch) read its data.
+#            no credentials, so they never deploy.
+#
+# The app only: deploy-ingest.yml deploys the ingest code, to live and to the
+# environments with their own data, from the same labels.
 #
 # It waits for the repository variable DEPLOY_CI, like deploy-ingest.yml, and
 # pull requests' deploys also for ENVIRONMENTS, set to on once infra/'s
@@ -46,9 +46,7 @@ env:
   PROXY: europe-north1-docker.pkg.dev/sustenaut/data/oauth2-proxy:v7.15.5
 
 jobs:
-  # Which environments this run deploys to: live from main; from a pull
-  # request, those its deploy-to-NAME labels name (only the one just added,
-  # when a label is), and nothing for a NAME environments.json lacks.
+  # Where this run deploys to (bin/deploy-environments).
   where:
     if: >-
       vars.DEPLOY_CI == 'on' && (
@@ -61,33 +59,16 @@ jobs:
       environments: ${{ steps.pick.outputs.environments }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          sparse-checkout: infra/environments.json
-          sparse-checkout-cone-mode: false
       - id: pick
         env:
           EVENT: ${{ github.event_name }}
           ACTION: ${{ github.event.action }}
           ADDED: ${{ github.event.label.name }}
           LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          ENVIRONMENTS: ${{ vars.ENVIRONMENTS }}
         run: |
-          if [[ "$EVENT" != pull_request ]]; then
-            picked='[]'
-          elif [[ "$ACTION" == labeled ]]; then
-            picked=$(jq -c --arg added "$ADDED" '[$added | select(startswith("deploy-to-")) | ltrimstr("deploy-to-")]' <<<'null')
-          else
-            picked=$(jq -c '[.[] | select(startswith("deploy-to-")) | ltrimstr("deploy-to-")]' <<<"$LABELS")
-          fi
-          # live comes from main alone, never from a label. Each environment
-          # comes with whether it has its own data and ingest job
-          # (environments.json, "data": "own").
-          if [[ "$EVENT" == pull_request ]]; then
-            environments=$(jq -c --slurpfile known infra/environments.json \
-              '[.[] | select(. != "live") | . as $n | $known[0][$n] // empty | {name: $n, ingest: (.data == "own")}]' <<<"$picked")
-          else
-            environments='[{"name":"live","ingest":false}]'
-          fi
-          echo "Deploying to: $environments"
+          environments=$(bin/deploy-environments app)
+          echo "Deploying the app to: $environments"
           echo "environments=$environments" >> "$GITHUB_OUTPUT"
 
   deploy:
@@ -95,7 +76,6 @@ jobs:
     if: needs.where.outputs.environments != '[]'
     runs-on: ubuntu-latest
     permissions: { contents: read, id-token: write }
-    timeout-minutes: 80 # an environment's first ingest run builds every stage
     strategy:
       fail-fast: false
       matrix:
@@ -104,14 +84,11 @@ jobs:
     # the same one queue, and the later push wins.
     concurrency: { group: "deploy-data-app-${{ matrix.environment.name }}", cancel-in-progress: false }
     env:
-      LIVE: ${{ matrix.environment.name == 'live' }}
+      LIVE: ${{ matrix.environment.live }}
       SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      IMAGE: europe-north1-docker.pkg.dev/sustenaut/data/${{ matrix.environment.name == 'live' && 'app' || 'app-preview' }}
-      SERVICE: ${{ matrix.environment.name == 'live' && 'data-app' || format('data-app-{0}', matrix.environment.name) }}
-      JOB: data-ingest-${{ matrix.environment.name }}
-      INGEST_IMAGE: europe-north1-docker.pkg.dev/sustenaut/data/ingest-preview
-      PIPELINE: pipelines/eex-french-go-auctions.yaml
-      SITE: ${{ matrix.environment.name == 'live' && 'data.sustenaut.eu' || format('data-{0}.sustenaut.eu', matrix.environment.name) }}
+      IMAGE: europe-north1-docker.pkg.dev/sustenaut/data/${{ matrix.environment.live && 'app' || 'app-preview' }}
+      SERVICE: ${{ matrix.environment.live && 'data-app' || format('data-app-{0}', matrix.environment.name) }}
+      SITE: ${{ matrix.environment.live && 'data.sustenaut.eu' || format('data-{0}.sustenaut.eu', matrix.environment.name) }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -167,26 +144,3 @@ jobs:
           gcloud run deploy "$SERVICE" --region "$REGION" --quiet --container app --image "$IMAGE:$SHA"
           echo "Deployed \`$IMAGE:$SHA\` to \`$SERVICE\`, https://$SITE/." >> "$GITHUB_STEP_SUMMARY"
 
-      # An environment with its own data (environments.json, "data": "own")
-      # also gets the pull request's ingest image in its job, run as
-      # deploy-ingest.yml runs live's: from the first stage whose parser
-      # changed, which is every stage the first time. Its app shows the new
-      # data once the run ends.
-      - uses: Sustenaut/pubhost/actions/docker-build@cd88da2277ef8772744e14c38df24b350ee2cacb # v0.2.0
-        if: matrix.environment.ingest
-        with:
-          tags: ${{ env.INGEST_IMAGE }}:${{ env.SHA }}
-          scope: data-ingest
-          build-args: DATA_COMMIT=${{ env.SHA }}
-
-      - name: Deploy the ingest image to the environment's job, and run it
-        if: matrix.environment.ingest
-        run: |
-          docker run --rm "$INGEST_IMAGE:$SHA" --version
-          docker run --rm "$INGEST_IMAGE:$SHA" corrections check corrections/eex-french-go-auctions.yaml
-          docker push "$INGEST_IMAGE:$SHA"
-          gcloud run jobs update "$JOB" --region "$REGION" --image "$INGEST_IMAGE:$SHA" --quiet
-          echo "Deployed \`$INGEST_IMAGE:$SHA\` to \`$JOB\`, then: data run $PIPELINE --from auto --trigger deploy" >> "$GITHUB_STEP_SUMMARY"
-          gcloud run jobs execute "$JOB" --region "$REGION" --wait \
-            --args="run,$PIPELINE,--from,auto,--trigger,deploy" \
-            --update-env-vars="GITHUB_REPOSITORY=$GITHUB_REPOSITORY,GITHUB_RUN_ID=$GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT=$GITHUB_RUN_ATTEMPT,GITHUB_WORKFLOW=$GITHUB_WORKFLOW,GITHUB_SHA=$SHA,GITHUB_ACTOR=$GITHUB_ACTOR"
