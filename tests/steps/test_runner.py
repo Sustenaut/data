@@ -7,6 +7,9 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import signal
+import subprocess
 import zipfile
 import re
 import shlex
@@ -16,14 +19,52 @@ from urllib.parse import quote
 
 import pyarrow.parquet as pq
 import pytest
-from pubtest.core import dig, same
-from pubtest.plugin import run_program
+import pubtest.plugin
+from pubtest.core import Completed, dig, same
 from pytest_bdd import given, parsers, scenarios, then
 
 scenarios("runner.feature", "run_log.feature", "discover.feature", "download.feature", "select.feature", "parse.feature",
           "merge.feature")
 
 REPOSITORY = Path(__file__).resolve().parents[2]
+
+
+def run_program(argv, stdin, cwd, env, timeout) -> Completed:
+    """pubtest's run_program, except that a program still running at the
+    timeout is stopped with SIGABRT under PYTHONFAULTHANDLER, so the failure
+    shows every thread's stack and what the program printed, not only that
+    it timed out."""
+    merged = {**os.environ, "PYTHONFAULTHANDLER": "1"}
+    for key, val in (env or {}).items():
+        if val is None:
+            merged.pop(key, None)
+        else:
+            merged[key] = val
+    if isinstance(stdin, str):
+        stdin = stdin.encode()
+    with subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd,
+                          env=merged) as proc:
+        try:
+            out, err = proc.communicate(stdin, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            exited = proc.poll()
+            proc.send_signal(signal.SIGABRT)
+            try:
+                out, err = proc.communicate(timeout=10)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                out, err = proc.communicate()
+            pytest.fail(f"{shlex.join(map(str, argv))} was still running after {timeout} seconds "
+                        f"(its exit status then: {exited}); it was stopped with SIGABRT.\n"
+                        f"stdout:\n{out.decode(errors='replace')}\nstderr:\n{err.decode(errors='replace')}",
+                        pytrace=False)
+    return Completed(argv, proc.returncode, out, err)
+
+
+@pytest.fixture(autouse=True)
+def stacks_on_timeout(monkeypatch):
+    """pubtest's "I run" step runs programs through this run_program too."""
+    monkeypatch.setattr(pubtest.plugin, "run_program", run_program)
 
 
 def scratch(ctx) -> Path:
