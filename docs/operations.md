@@ -93,9 +93,8 @@ To add an environment NAME:
    `"kind": "cloud-run"` and `"service": "data-app-NAME"`. Its apply makes the
    DNS records and the domain mapping, and Google issues the certificate
    within the hour.
-4. Register its address on the team client: `register-app.py --redirect
-   https://data-NAME.sustenaut.eu/oauth2/callback --logout
-   https://data-NAME.sustenaut.eu/ --role data` (step 4 below).
+4. Register its address on the team client, as in step 4 below, with
+   `data-NAME.sustenaut.eu` for `data.sustenaut.eu`.
 
 ## Coding conventions, and how they are enforced
 
@@ -143,8 +142,17 @@ project or a rebuild:
    `data-cookie-secret` (`openssl rand -base64 32 | tr -d '\n' | tr --
    '+/' '-_'`).
 4. Register the site on the team client with Sustenaut/auth's
-   `register-app.py --redirect https://data.sustenaut.eu/oauth2/callback
-   --logout https://data.sustenaut.eu/ --role data`.
+   `register-app.py`. It runs on the k3s server, which keeps the client, so
+   from a clone of Sustenaut/auth:
+
+   ```sh
+   ssh root@sustenaut "python3 -I - --state-dir /root/.config/sustenaut-auth/team-sustenaut.eu \
+     --auth https://auth.sustenaut.eu/realms/team --domain sustenaut.eu --name 'sustenaut.eu team sites' \
+     --redirect https://data.sustenaut.eu/oauth2/callback --logout https://data.sustenaut.eu/ --role data" < register-app.py
+   ```
+
+   It prints `"status": "ok"`. It needs no certificate: it never opens the
+   site.
 5. The first apply makes everything but the registry's grants and the app's
    service. shared-infra then sets `data_registry_made = true`, which lets
    this stack set IAM on its registry, and a pull request here sets
