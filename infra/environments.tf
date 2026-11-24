@@ -10,8 +10,8 @@
 # The job runs a pull request's code, so it runs as its own account,
 # data-ingest-NAME (shared-infra's), which may write only this store and this
 # run log: nothing here can reach live's data. The store is for trying
-# things: no access logs, replaced objects kept a week, and emptied when the
-# environment is removed. It has no schedule; only deploys run it.
+# things: replaced objects kept a week, and emptied when the environment is
+# removed; its requests are logged as live's are. It has no schedule; only deploys run it.
 
 locals {
   ingest_environments = { for name, e in local.environments : name => e if e.data == "own" }
@@ -45,6 +45,12 @@ resource "google_storage_bucket" "environment_store" {
       days_since_noncurrent_time = 7
       with_state                 = "ARCHIVED"
     }
+  }
+
+  # Its requests are logged beside live's (main.tf), under its own prefix.
+  logging {
+    log_bucket        = google_storage_bucket.store_logs.name
+    log_object_prefix = "${local.project}-data-store-${each.key}"
   }
 
   soft_delete_policy {
