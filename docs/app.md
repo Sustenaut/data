@@ -2,10 +2,10 @@
 
 You own how people explore the data: the Streamlit app in `src/app/`, which
 is the whole of data.sustenaut.eu. It has a landing page at `/` and the
-power-auctions page at `/power-auctions`. It only reads data. The database
+go-auctions page at `/go-auctions`. It only reads data. The database
 it shows is built by the [ingest pipeline](ingest.md).
 
-- `streamlit_app.py` is the entry point: it routes `/` and `/power-auctions`.
+- `streamlit_app.py` is the entry point: it routes `/` and `/go-auctions`.
 - `data.py` holds every number the page shows (filters, bins, statistics,
   regions), with no Streamlit in it, so it is tested on its own.
 - `page.py` draws: the sidebar, the tabs, the charts, the sticky header.
@@ -17,14 +17,14 @@ it shows is built by the [ingest pipeline](ingest.md).
 
 ```sh
 make venv                                   # once: .venv with everything the suite and the app need
-bin/data output pipelines/eex-french-power-auctions.yaml merge \
-  --store gs://sustenaut-soldera-store --copy-to power-auctions.duckdb
-bin/data app --database power-auctions.duckdb      # then open http://localhost:8501
+bin/data output pipelines/eex-french-go-auctions.yaml database \
+  --store gs://sustenaut-soldera-store --copy-to go-auctions.duckdb
+bin/data app --database go-auctions.duckdb      # then open http://localhost:8501
 ```
 
 The copy needs Google credentials that can read the bucket
 (`gcloud auth application-default login`). Without them, build a database
-yourself with `bin/data run pipelines/eex-french-power-auctions.yaml`, which
+yourself with `bin/data run pipelines/eex-french-go-auctions.yaml`, which
 fetches from EEX and leaves its store in `store/`, then run `bin/data app
 --store ./store`. `bin/data app --store gs://sustenaut-soldera-store` reads
 the bucket directly, as the deployed app does.
@@ -65,7 +65,7 @@ resource.type="cloud_run_revision" resource.labels.service_name="soldera-app"
 ```
 
 A page that says it cannot read the auction results means the bucket has no
-published database under the merge parser's pinned version. That happens
+published database under the database parser's pinned version. That happens
 after a version bump, until an ingest run rebuilds it, which
 **deploy ingest pipeline** does on each deploy. A sign-in loop or a 403 is
 oauth2-proxy and the team's roles, not the app: see [Operations](operations.md).

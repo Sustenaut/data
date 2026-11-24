@@ -1,5 +1,5 @@
-Feature: The power-auctions app's numbers
-  The app at data.sustenaut.eu/power-auctions plots the merged auction
+Feature: The go-auctions app's numbers
+  The app at data.sustenaut.eu/go-auctions plots the merged auction
   results. EEX publishes one volume-weighted average price per auction,
   region and technology, so a "segment" (one region and technology in one
   auction) is what every plot is drawn from: a price distribution is of
@@ -181,8 +181,13 @@ Feature: The power-auctions app's numbers
 
   Scenario: data.sustenaut.eu's landing page links to the app
     When the site's landing page is opened
-    Then the landing page links to "power-auctions" as "French guarantees of origin auctions"
+    Then the landing page links to "go-auctions" as "French guarantees of origin auctions"
+
+  Scenario: The site's old address sends people on to the app's new one
+    When the site is opened at "power-auctions"
+    Then the app shows no error
+    And the page's title is "French guarantees of origin auctions"
 
   Scenario: The app says so when the store has no published database
     When the app is opened on an empty store
-    Then the app shows the error "The auction results cannot be read: the merge stage (auction-results-duckdb@1.1.0) has published nothing in"
+    Then the app shows the error "The auction results cannot be read: the database stage (auction-results-duckdb@1.1.0) has published nothing in"

@@ -1,4 +1,4 @@
-"""The merge stage: every auction_results file into the app's DuckDB.
+"""The database stage: every auction_results file into the app's DuckDB.
 
 It reads any provider's canonical `auction_results` Parquet files and writes
 one DuckDB file holding:

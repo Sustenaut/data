@@ -8,7 +8,7 @@ Feature: Stage 2, download: every file the page links to
   Background:
     Given the program under test is "data"
     And a scratch directory
-    And the repository's pipeline "eex-french-power-auctions"
+    And the repository's pipeline "eex-french-go-auctions"
 
   Scenario: Every file is downloaded, and each file in an archive is stored too
     Given the "eex" service answers "GET /en/markets/energy-certificates/french-auctions-power" with 200 and:

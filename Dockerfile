@@ -25,4 +25,4 @@ ENV PYTHONPATH=/app/src \
 
 USER runner
 ENTRYPOINT ["python", "-m", "ingest"]
-CMD ["run", "pipelines/eex-french-power-auctions.yaml", "--trigger", "schedule"]
+CMD ["run", "pipelines/eex-french-go-auctions.yaml", "--trigger", "schedule"]

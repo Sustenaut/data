@@ -8,7 +8,7 @@ Feature: Stage 1, discover: the files the EEX page links to
   Background:
     Given the program under test is "data"
     And a scratch directory
-    And the repository's pipeline "eex-french-power-auctions"
+    And the repository's pipeline "eex-french-go-auctions"
 
   Scenario: Every linked file is listed once, with what the page says about it
     Given the "eex" service answers "GET /en/markets/energy-certificates/french-auctions-power" with 200 and:

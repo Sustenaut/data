@@ -26,7 +26,7 @@ env:
   REGION: europe-north1
   IMAGE: europe-north1-docker.pkg.dev/sustenaut/soldera/ingest
   JOB: soldera-ingest
-  PIPELINE: pipelines/eex-french-power-auctions.yaml
+  PIPELINE: pipelines/eex-french-go-auctions.yaml
 
 jobs:
   deploy:
@@ -46,7 +46,7 @@ jobs:
       - name: The image starts and reads its pipeline
         run: |
           docker run --rm "$IMAGE:$GITHUB_SHA" --version
-          docker run --rm "$IMAGE:$GITHUB_SHA" corrections check corrections/eex-french-power-auctions.yaml
+          docker run --rm "$IMAGE:$GITHUB_SHA" corrections check corrections/eex-french-go-auctions.yaml
 
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:

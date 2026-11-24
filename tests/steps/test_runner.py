@@ -24,12 +24,12 @@ from pubtest.core import Completed, dig, same
 from pytest_bdd import given, parsers, scenarios, then
 
 scenarios("runner.feature", "run_log.feature", "discover.feature", "download.feature", "select.feature", "parse.feature",
-          "merge.feature")
+          "database.feature")
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 
 
-# DEBUG(#24): stacks for the merge scenario's CI hang; remove with its fix.
+# DEBUG(#24): stacks for the database scenario's CI hang; remove with its fix.
 def run_program(argv, stdin, cwd, env, timeout) -> Completed:
     """pubtest's run_program, except that a program still running at the
     timeout is stopped with SIGABRT under PYTHONFAULTHANDLER, so the failure
@@ -303,7 +303,7 @@ def parsed_rows_include(ctx, stage, datatable):
 
 @given("the corrections file holds:")
 def corrections_file(ctx, docstring):
-    path = scratch(ctx) / "corrections" / "eex-french-power-auctions.yaml"
+    path = scratch(ctx) / "corrections" / "eex-french-go-auctions.yaml"
     path.parent.mkdir(exist_ok=True)
     path.write_text(docstring + "\n", encoding="utf-8")
 
