@@ -7,7 +7,7 @@ variable "workload_identity_pool" {
 variable "registry_granted" {
   description = "Whether this stack may set IAM on its registry. shared-infra grants that on the registry \"data\" once this stack's first apply has made it (its data_registry_made). Until then the deploy account cannot push and Terraform cannot pull (docs/operations.md, \"Setting it up\")."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "serve_app" {
