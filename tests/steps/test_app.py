@@ -1,4 +1,4 @@
-"""The power-auctions app's steps: a small merged database in the scenario's
+"""The go-auctions app's steps: a small merged database in the scenario's
 scratch directory, the numbers src/app/data.py draws from it, and
 the app itself, run by Streamlit's own test harness."""
 
@@ -29,7 +29,7 @@ def app():
 
 def database(ctx) -> Path:
     assert ctx.directory is not None, "these steps need a scratch directory"
-    return ctx.directory / "power-auctions.duckdb"
+    return ctx.directory / "go-auctions.duckdb"
 
 
 def number(text: str) -> float | None:
@@ -198,8 +198,8 @@ def kept(app, count, auctions):
     assert ", ".join(sorted({s.auction_id for s in app["kept"]})) == auctions
 
 
-def power_auctions() -> None:
-    """The power-auctions page on its own, as AppTest runs a function."""
+def go_auctions() -> None:
+    """The GO auctions page on its own, as AppTest runs a function."""
     from app.page import main  # noqa: PLC0415
 
     main()
@@ -216,7 +216,7 @@ def run_app(app, monkeypatch, env: dict[str, str], landing: bool = False) -> Non
     if landing:
         test = AppTest.from_file(str(APP), default_timeout=60)
     else:
-        test = AppTest.from_function(power_auctions, default_timeout=60)
+        test = AppTest.from_function(go_auctions, default_timeout=60)
     test.run()
     app["test"] = test
 
@@ -236,6 +236,22 @@ def links_to(app, page, label):
     links = [(link.proto.page, link.proto.label) for link in app["test"].get("page_link")]
     assert (page, label) in links, links
     assert not app["test"].exception, [e.value for e in app["test"].exception]
+
+
+@when(parsers.parse('the site is opened at "{path}"'))
+def open_site_at(ctx, app, monkeypatch, path):
+    from streamlit.navigation.page import calc_hash  # noqa: PLC0415 - how st.Page names a page's address
+
+    run_app(app, monkeypatch, {"DATA_DATABASE": str(database(ctx))}, landing=True)
+    # A browser opening data.sustenaut.eu/PATH asks for the page whose
+    # address that is, by the same hash.
+    app["test"]._page_hash = calc_hash(path)  # noqa: SLF001 - AppTest switches pages only by file
+    app["test"].run()
+
+
+@then(parsers.parse('the page\'s title is "{title}"'))
+def page_title(app, title):
+    assert [t.value for t in app["test"].title] == [title]
 
 
 @when("the app is opened on an empty store")

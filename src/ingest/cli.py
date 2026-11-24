@@ -9,8 +9,8 @@
 `output` prints where the newest published output of a stage is kept (the
 store files outputs by content hash), or copies it to FILE.
 
-`app` serves the power-auctions app (src/app) with Streamlit, on the
-newest database the merge stage published in the store, or on FILE.
+`app` serves the go-auctions app (src/app) with Streamlit, on the
+newest database the database stage published in the store, or on FILE.
 
 `corrections check` checks a corrections file's shape and tries each rule on
 the excerpt it keeps of the file it corrects.
@@ -36,7 +36,7 @@ from ingest.core.runner import AUTO, RunError, Runner
 from ingest.core.storage import LocalStorage, latest_outputs, open_store
 
 TRIGGERS = ("manual", "schedule", "deploy", "rerun")
-APP_PIPELINE = "pipelines/eex-french-power-auctions.yaml"
+APP_PIPELINE = "pipelines/eex-french-go-auctions.yaml"
 # Streamlit's settings for the app: light, in the plots' ink, and nothing
 # sent to Streamlit. It listens where Streamlit does by default, which Cloud
 # Run reaches; no address is set here.
@@ -74,14 +74,14 @@ def parser() -> argparse.ArgumentParser:
     output.add_argument("--store", default=setting("STORE", "store"),
                         help="the directory stage outputs are kept in, or gs://BUCKET to read the bucket "
                              "over its API (DATA_STORE)")
-    app = commands.add_parser("app", help="serve the power-auctions app")
+    app = commands.add_parser("app", help="serve the go-auctions app")
     app.add_argument("--store", default=setting("STORE", "store"),
                      help="the store whose newest merged database it shows: a directory, or gs://BUCKET "
                           "(DATA_STORE)")
     app.add_argument("--database", default=setting("DATABASE"),
                      help="show this DuckDB file instead (DATA_DATABASE)")
     app.add_argument("--pipeline", default=setting("PIPELINE", APP_PIPELINE),
-                     help="the pipeline whose merge stage made the database (DATA_PIPELINE)")
+                     help="the pipeline whose database stage made the database (DATA_PIPELINE)")
     app.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8501")),
                      help="the port to serve on (PORT, as Cloud Run sets it)")
     fixes = commands.add_parser("corrections", help="work with a corrections file")

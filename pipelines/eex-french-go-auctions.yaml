@@ -1,8 +1,8 @@
 # The French auctions of power guarantees of origin, from EEX, into one
-# DuckDB for data.sustenaut.eu/power-auctions. Each stage pins its parser:
+# DuckDB for data.sustenaut.eu/go-auctions. Each stage pins its parser:
 # bumping a version here is how a stage is changed, and `data run
 # --from auto` re-runs from the first stage whose pin changed.
-pipeline: eex-french-power-auctions
+pipeline: eex-french-go-auctions
 plugins: [ingest.parsers.eex, ingest.parsers.auction_results]
 stages:
   - name: discover
@@ -19,9 +19,9 @@ stages:
     parser: eex-french-auction@1.0.0
     options:
       # Mistakes found in EEX's files, and what is done about each.
-      corrections: corrections/eex-french-power-auctions.yaml
-  - name: merge
+      corrections: corrections/eex-french-go-auctions.yaml
+  - name: database
     parser: auction-results-duckdb@1.1.0
     options:
-      # The file the app at data.sustenaut.eu/power-auctions reads.
-      database: power-auctions.duckdb
+      # The file the app at data.sustenaut.eu/go-auctions reads.
+      database: go-auctions.duckdb

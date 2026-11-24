@@ -1,4 +1,4 @@
-# The ingest job of data.sustenaut.eu/power-auctions: its image, the
+# The ingest job of data.sustenaut.eu/go-auctions: its image, the
 # bucket its store lives in, the BigQuery run log, the Cloud Run job, a weekly
 # schedule, and an account only this repository's workflows can act as, which
 # deploys the image and starts the job and does nothing else.

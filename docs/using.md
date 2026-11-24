@@ -10,7 +10,7 @@ The site is for the Sustenaut team. You sign in with your team account at
 auth.sustenaut.eu. If the site says you have no access, ask an administrator
 to give you the **data** role.
 
-## The power-auctions page
+## The GO auctions page
 
 Every month, EEX auctions the guarantees of origin of French renewable power:
 certificates that say a megawatt-hour came from wind, solar, hydro or thermal

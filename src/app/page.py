@@ -1,12 +1,12 @@
-"""data.sustenaut.eu/power-auctions: the prices of France's guarantees of
-origin auctions, from the merge stage's DuckDB, and data.sustenaut.eu's
+"""data.sustenaut.eu/go-auctions: the prices of France's guarantees of
+origin auctions, from the database stage's DuckDB, and data.sustenaut.eu's
 landing page, which links to it. streamlit_app.py runs `site` on every
-rerun, which routes / to `landing` and /power-auctions to `main`; the pages
+rerun, which routes / to `landing` and /go-auctions to `main`; the pages
 are here, in a module, so they are imported (and their coverage measured)
 like the rest of this repository.
 
 It reads the database named by DATA_DATABASE, or else the newest one the
-merge stage of DATA_PIPELINE published in DATA_STORE (a directory, or
+database stage of DATA_PIPELINE published in DATA_STORE (a directory, or
 gs://BUCKET read over its API), and looks for a newer one every ten minutes."""
 
 from __future__ import annotations
@@ -456,7 +456,7 @@ def landing() -> None:
                 "and kept with a record of where each figure came from.")
     st.subheader(":orange[:material/gavel:] Auction results")
     with st.container(border=True):
-        st.page_link(power_auctions_page(), label="French guarantees of origin auctions", icon="🇫🇷")
+        st.page_link(go_auctions_page(), label="French guarantees of origin auctions", icon="🇫🇷")
         st.markdown(
             "The monthly auctions in which the French state sells the guarantees of origin of the "
             "renewable power it supports, run by EEX. Prices by technology and region since the first "
@@ -471,13 +471,23 @@ def landing() -> None:
         pages[2].markdown(":green[:material/map:] **By region**  \nA map of France, region by region")
 
 
-def power_auctions_page() -> st.Page:
-    return st.Page(main, title="Power auctions", url_path="power-auctions")
+def go_auctions_page() -> st.Page:
+    return st.Page(main, title="GO auctions", url_path="go-auctions")
+
+
+# Addresses the site had before, each sent on to where its page is now.
+MOVED = {"power-auctions": go_auctions_page}
+
+
+def moved_page(old: str, new) -> st.Page:
+    return st.Page(lambda: st.switch_page(new()), title=f"Moved: {old}", url_path=old)
 
 
 def site() -> None:
-    """Every address of data.sustenaut.eu: the landing page at /, the app at /power-auctions."""
-    st.navigation([st.Page(landing, title="Sustenaut data", default=True), power_auctions_page()],
+    """Every address of data.sustenaut.eu: the landing page at /, the app at
+    /go-auctions, and the old /power-auctions, which sends people there."""
+    st.navigation([st.Page(landing, title="Sustenaut data", default=True), go_auctions_page(),
+                   *(moved_page(old, new) for old, new in MOVED.items())],
                   position="hidden").run()
 
 
@@ -528,11 +538,11 @@ def masthead(caption: str = "") -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title="Power auctions · Sustenaut", layout="wide")
+    st.set_page_config(page_title="GO auctions · Sustenaut", layout="wide")
     try:
         path, version = database_path(setting("DATABASE"),
                                       setting("STORE", "store"),
-                                      setting("PIPELINE", "pipelines/eex-french-power-auctions.yaml"))
+                                      setting("PIPELINE", "pipelines/eex-french-go-auctions.yaml"))
         segments, choices = load(path, version)
     except (data.DataError, OSError, ValueError) as error:
         masthead()

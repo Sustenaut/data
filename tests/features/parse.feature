@@ -14,7 +14,7 @@ Feature: Stage 4, parse: each results file into canonical auction rows
   Background:
     Given the program under test is "data"
     And a scratch directory
-    And the repository's pipeline "eex-french-power-auctions"
+    And the repository's pipeline "eex-french-go-auctions"
 
   Scenario: A workbook becomes one canonical row per region and technology
     Given the "eex" service answers "GET /en/markets/energy-certificates/french-auctions-power" with 200 and:
@@ -331,7 +331,7 @@ Feature: Stage 4, parse: each results file into canonical auction rows
     And stderr mentions "20190918_April_2019_global_results.xlsx is not a readable xlsx workbook"
 
   Scenario: The repository's corrections each match the excerpt they keep
-    When I run "data corrections check corrections/eex-french-power-auctions.yaml"
+    When I run "data corrections check corrections/eex-french-go-auctions.yaml"
     Then it succeeds
     And it prints "0 problems"
 
@@ -361,7 +361,7 @@ Feature: Stage 4, parse: each results file into canonical auction rows
           excerpt:
             - {row: 52, region: Provence-Alpes-Côte d'Azur, technology: Thermique, volume_offered: 2975}
       """
-    When I run "data corrections check corrections/eex-french-power-auctions.yaml"
+    When I run "data corrections check corrections/eex-french-go-auctions.yaml"
     Then the exit code is 1
     And stderr mentions "off-by-one: on its excerpt, correction off-by-one is no longer needed as written: no row of 20260121_October_2025_7_GLOBAL_Results_detailedresults.csv match"
     And it prints "1 rules, 1 checked against their excerpts, 1 problems"

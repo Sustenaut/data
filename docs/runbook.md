@@ -68,7 +68,7 @@ Open one and use **Query** (or `SELECT * FROM` it) to run it.
 
    ```
    mkdir -p store && gcloud storage cp -r "gs://sustenaut-soldera-store/*" ./store
-   bin/data run pipelines/eex-french-power-auctions.yaml --store ./store --from STAGE --to STAGE
+   bin/data run pipelines/eex-french-go-auctions.yaml --store ./store --from STAGE --to STAGE
    ```
 
 ## Common failures
@@ -76,9 +76,9 @@ Open one and use **Query** (or `SELECT * FROM` it) to run it.
 | Error | What it means | What to do |
 | --- | --- | --- |
 | `download: … failed after 3 tries` | EEX's site timed out or cut a transfer off three times | Re-run with **run ingest pipeline**, `from: download` |
-| A correction rule is no longer needed | EEX fixed a file that `corrections/eex-french-power-auctions.yaml` corrects | Remove the rule in a PR, then re-run from `parse` |
+| A correction rule is no longer needed | EEX fixed a file that `corrections/eex-french-go-auctions.yaml` corrects | Remove the rule in a PR, then re-run from `parse` |
 | A file has the wrong number of segments, or rows out of order | EEX changed a file's layout | Add a correction rule with an excerpt, or a new parser version, in a PR |
-| `merge: … has REGION TECH twice` or `comes from N files` | Two files give the same auction | Find both files in `failed_items`, and decide which one wins in `corrections/` |
+| `database: … has REGION TECH twice` or `comes from N files` | Two files give the same auction | Find both files in `failed_items`, and decide which one wins in `corrections/` |
 | `403 … Permission … denied` | The job's account lacks a grant | Grants for the job's accounts are in `infra/main.tf`; grants for terraform-data are in shared-infra's `infra/terraform-ci.tf` |
 
 ## Re-running

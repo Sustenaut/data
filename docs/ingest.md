@@ -15,10 +15,10 @@ ones after it.
 
 ```sh
 make venv
-bin/data run pipelines/eex-french-power-auctions.yaml               # every stage, in order
-bin/data run pipelines/eex-french-power-auctions.yaml --from parse  # from one stage, reusing what is stored before it
-bin/data run pipelines/eex-french-power-auctions.yaml --from auto   # from where a parser pin or an input changed
-bin/data run pipelines/eex-french-power-auctions.yaml --force       # build every item again
+bin/data run pipelines/eex-french-go-auctions.yaml               # every stage, in order
+bin/data run pipelines/eex-french-go-auctions.yaml --from parse  # from one stage, reusing what is stored before it
+bin/data run pipelines/eex-french-go-auctions.yaml --from auto   # from where a parser pin or an input changed
+bin/data run pipelines/eex-french-go-auctions.yaml --force       # build every item again
 ```
 
 Outputs go to `store/` (`--store`, `DATA_STORE`), filed by content hash.
@@ -27,10 +27,10 @@ with `--run-log bigquery:PROJECT.DATASET.TABLE`. To find or copy the newest
 published output of a stage:
 
 ```sh
-bin/data output pipelines/eex-french-power-auctions.yaml merge                                   # its path
-bin/data output pipelines/eex-french-power-auctions.yaml merge --copy-to power-auctions.duckdb   # a copy
-bin/data output pipelines/eex-french-power-auctions.yaml discover --name page.html               # one of several
-bin/data output pipelines/eex-french-power-auctions.yaml merge --store gs://sustenaut-soldera-store --copy-to power-auctions.duckdb
+bin/data output pipelines/eex-french-go-auctions.yaml database                                   # its path
+bin/data output pipelines/eex-french-go-auctions.yaml database --copy-to go-auctions.duckdb   # a copy
+bin/data output pipelines/eex-french-go-auctions.yaml discover --name page.html               # one of several
+bin/data output pipelines/eex-french-go-auctions.yaml database --store gs://sustenaut-soldera-store --copy-to go-auctions.duckdb
 ```
 
 The last reads the bucket with Google's application default credentials.
@@ -41,7 +41,7 @@ asked.
 
 ### The EEX pipeline
 
-`pipelines/eex-french-power-auctions.yaml` pins each stage's parser:
+`pipelines/eex-french-go-auctions.yaml` pins each stage's parser:
 
 | Stage | Parser | What it stores |
 | --- | --- | --- |
@@ -49,12 +49,12 @@ asked.
 | download | eex-french-auction-download | each file as fetched, and each file inside an archive |
 | select | eex-go-global-results-select | each monthly GO Global Results file, once, by its own name |
 | parse | eex-french-auction | `results.parquet` per file, in the canonical `auction_results` schema (`src/ingest/canonical/`) |
-| merge | auction-results-duckdb | `power-auctions.duckdb`, the database the app reads |
+| database | auction-results-duckdb | `go-auctions.duckdb`, the database the app reads |
 
-The merge stage (`src/ingest/parsers/auction_results.py`) writes the tables
+The database stage (`src/ingest/parsers/auction_results.py`) writes the tables
 `auction_results`, `data_notes` and `build_info`, and the views `auctions`
 and `auction_technologies`. Two rows for the same auction, region and
-technology, or one auction from two files, fail the run. The merge notes
+technology, or one auction from two files, fail the run. The database stage notes
 what only the whole series shows: auction numbers skipped or used twice, and
 production months with no auction.
 
@@ -84,7 +84,7 @@ an auction missing. The stage that finds one writes it to `notes.parquet`.
 | Every behaviour has a Gherkin scenario in `tests/features/`, run against `bin/data` as a person would run it, and every scenario has a **When** | the suite in CI (`make functional`), and pubrules' TEST-04 in `pubrules sync --check` |
 | A parser subclasses `ingest.core.parser.Parser`, sets `name` and `version`, and registers with `@register`. **Bump the version whenever its output changes**: old outputs are never overwritten, and **deploy ingest pipeline** rebuilds from the first stage whose pin changed | review. `parser_code_hash` in the run log shows a parser edited without a bump |
 | Fail loudly: any failed item fails its stage, and nothing partial is published | the runner itself, and its scenarios in `runner.feature` |
-| EEX's mistakes are corrected in `corrections/eex-french-power-auctions.yaml`, never in code. Each row rule keeps the file's sha256 and an excerpt, and a rule no longer needed fails the run | `bin/data corrections check`, in the suite |
+| EEX's mistakes are corrected in `corrections/eex-french-go-auctions.yaml`, never in code. Each row rule keeps the file's sha256 and an excerpt, and a rule no longer needed fails the run | `bin/data corrections check`, in the suite |
 | The generic runner (`src/ingest/core/`) knows nothing about EEX, and says "ingest run" | review |
 | New code is covered by tests, with no new issues or duplication | SonarQube Cloud's quality gate, part of `ci / passed` |
 | Temporary code carries `DEBUG(#N)` with an open issue | the **debug markers** workflow (`bin/check-debug-markers`) |
@@ -100,7 +100,7 @@ option in a pipeline file may name an environment variable, `${NAME}` or
 
 ```sh
 mkdir -p store && gcloud storage cp -r "gs://sustenaut-soldera-store/*" ./store
-bin/data run pipelines/eex-french-power-auctions.yaml --store ./store --from STAGE --to STAGE
+bin/data run pipelines/eex-french-go-auctions.yaml --store ./store --from STAGE --to STAGE
 ```
 
 The run log in `runs.jsonl` has a row per stage with every failed item's

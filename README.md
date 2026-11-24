@@ -4,7 +4,7 @@ The code behind [data.sustenaut.eu](https://data.sustenaut.eu): an **ingest
 pipeline** that fetches public data and builds it into a database, and an
 **app** that lets the team explore that database. The first dataset is EEX's
 French guarantees of origin auctions, shown at
-[data.sustenaut.eu/power-auctions](https://data.sustenaut.eu/power-auctions).
+[data.sustenaut.eu/go-auctions](https://data.sustenaut.eu/go-auctions).
 
 ## Start here
 
@@ -22,7 +22,7 @@ Pick the page for what you do with this repository:
 
 | Path | What it is |
 | --- | --- |
-| `src/app/` | the Streamlit app: landing page and power-auctions page |
+| `src/app/` | the Streamlit app: landing page and go-auctions page |
 | `src/ingest/` | the ingest pipeline: the generic stage runner (`core/`), the parsers (`parsers/`), the canonical schemas (`canonical/`) and the `data` command (`cli.py`) |
 | `pipelines/` | each pipeline's stages and their pinned parser versions |
 | `corrections/` | EEX's published mistakes and what the parser does about each |

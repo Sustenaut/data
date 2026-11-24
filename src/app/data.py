@@ -1,4 +1,4 @@
-"""What the power-auctions app plots, from the merge stage's DuckDB.
+"""What the go-auctions app plots, from the database stage's DuckDB.
 
 EEX publishes no single bids. For each auction it gives, for each region and
 technology, the volume offered and sold and the volume-weighted average price
@@ -19,7 +19,7 @@ from typing import Any
 
 import duckdb
 
-DATABASE = "power-auctions.duckdb"
+DATABASE = "go-auctions.duckdb"
 
 # Wind, solar, hydro, thermal: the order EEX lists them in, and their colours,
 # soft but told apart by anyone (checked for colour-blind separation).
@@ -372,12 +372,12 @@ def over_time(selected: list[Segment], date_by: str, weighted: bool) -> list[dic
     return points
 
 
-# Finding the database: the merge stage's newest published output, in the store.
+# Finding the database: the database stage's newest published output, in the store.
 
-def published_database(store: str | Path, pipeline_file: str | Path, stage_name: str = "merge"
+def published_database(store: str | Path, pipeline_file: str | Path, stage_name: str = "database"
                        ) -> tuple[str, str, Any]:
-    """The key and sha256 of the newest power-auctions.duckdb the pipeline's
-    merge stage published in the store, and the store to read it from: a
+    """The key and sha256 of the newest go-auctions.duckdb the pipeline's
+    database stage published in the store, and the store to read it from: a
     directory, or gs://BUCKET read over its API."""
     from ingest.core import pipeline as pipeline_mod  # noqa: PLC0415
     from ingest.core.storage import latest_outputs, open_store  # noqa: PLC0415

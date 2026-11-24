@@ -8,7 +8,7 @@ Feature: Stage 3, select: the monthly GO Global Results files, once each
   Background:
     Given the program under test is "data"
     And a scratch directory
-    And the repository's pipeline "eex-french-power-auctions"
+    And the repository's pipeline "eex-french-go-auctions"
     And the "eex" service answers "GET /en/markets/energy-certificates/french-auctions-power" with 200 and:
       """
       <h2>Guarantees of Origin Data</h2>

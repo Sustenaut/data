@@ -1,6 +1,6 @@
 """A pipeline's definition, read from YAML:
 
-    pipeline: eex-french-power-auctions
+    pipeline: eex-french-go-auctions
     plugins: [ingest.parsers.eex_french_auction]   # modules that register parsers
     stages:
       - name: discover
@@ -108,7 +108,7 @@ def load(path: str | Path) -> Pipeline:
         raise PipelineError(f"{path} must be a mapping with pipeline and stages")
     name = data.get("pipeline")
     if not isinstance(name, str) or not NAME.match(name):
-        raise PipelineError(f"{path}: pipeline must be a lowercase name such as eex-french-power-auctions")
+        raise PipelineError(f"{path}: pipeline must be a lowercase name such as eex-french-go-auctions")
     plugins = data.get("plugins") or []
     if not isinstance(plugins, list) or not all(isinstance(p, str) for p in plugins):
         raise PipelineError(f"{path}: plugins must be a list of module names")

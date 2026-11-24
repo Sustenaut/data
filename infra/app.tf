@@ -1,9 +1,9 @@
-# The app at data.sustenaut.eu: the landing page at / and the power-auctions
-# app at /power-auctions (src/app), one Streamlit server in the Cloud
+# The app at data.sustenaut.eu: the landing page at / and the go-auctions
+# app at /go-auctions (src/app), one Streamlit server in the Cloud
 # Run service data-app, with oauth2-proxy in front of it in the same
 # service. The proxy signs people in with the team realm at auth.sustenaut.eu
 # and lets in only those with the role data, as business-plan's planning app
-# does with plan. The app reads the newest database the merge stage published
+# does with plan. The app reads the newest database the database stage published
 # in the store bucket, as data-app, which may read that bucket and the two
 # sign-in secrets and nothing else. The deploy workflow builds the app's
 # image and points the service's app container at it; shared-infra maps

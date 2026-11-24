@@ -8,7 +8,7 @@ names, so a plot cannot mix MWh and GWh. A provider's columns with no
 canonical home go in `extras`, as JSON.
 
 The parse stage writes it with `write`, which refuses a table that does not
-match; the merge stage creates its DuckDB table from SCHEMA."""
+match; the database stage creates its DuckDB table from SCHEMA."""
 
 from __future__ import annotations
 

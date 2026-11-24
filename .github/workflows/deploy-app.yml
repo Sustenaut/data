@@ -1,5 +1,5 @@
 # Builds the app's image (app.Dockerfile) from main, checks that it serves
-# the landing page and the power-auctions page, pushes it, keeps a copy of
+# the landing page and the go-auctions page, pushes it, keeps a copy of
 # oauth2-proxy beside it, and points the soldera-app service's app container
 # at it. It runs as soldera-deploy (infra/), like deploy-ingest.yml, and waits for
 # the same repository variable DEPLOY_CI. Until infra/'s serve_app is true
@@ -57,7 +57,7 @@ jobs:
           for i in $(seq 1 30); do curl -fs localhost:8080/_stcore/health && break; sleep 1; done
           curl -fs localhost:8080/_stcore/health
           curl -fs localhost:8080/ | grep -q '<div id="root">'
-          curl -fs localhost:8080/power-auctions | grep -q '<div id="root">'
+          curl -fs localhost:8080/go-auctions | grep -q '<div id="root">'
           docker rm -f app
 
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
