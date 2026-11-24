@@ -110,7 +110,7 @@ class GcsReader:
             raise ValueError(f"{uri!r} is not gs://BUCKET")
         self.bucket, self.prefix = bucket, prefix.strip("/")
         self.base = os.environ.get("STORAGE_URL", "https://storage.googleapis.com").rstrip("/")
-        self._credentials = None
+        self._credentials: Any = None  # google-auth's Credentials, once signed in
 
     def _name(self, key: str) -> str:
         if key.startswith("/") or ".." in key.split("/"):

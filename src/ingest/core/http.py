@@ -10,6 +10,7 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from typing import Any
 
 from ingest import __version__, setting
 
@@ -91,7 +92,15 @@ class GoogleTransport:
     """google.auth.transport.Request, over `send`: what google-auth calls to
     fetch a token."""
 
-    def __call__(self, url, method="GET", body=None, headers=None, timeout=60, **kwargs):  # noqa: ANN001, ARG002
+    def __call__(
+        self,
+        url: str,
+        method: str = "GET",
+        body: bytes | str | None = None,
+        headers: dict[str, str] | None = None,
+        timeout: float | None = 60,
+        **kwargs: Any,
+    ) -> GoogleResponse:
         from google.auth import exceptions  # noqa: PLC0415
 
         if isinstance(body, str):

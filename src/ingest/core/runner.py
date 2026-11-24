@@ -71,7 +71,8 @@ class Runner:
     # --- which stages run -------------------------------------------------------
 
     def latest(self, stage: Stage) -> dict[str, Any] | None:
-        return self.storage.get_json_or_none(f"{stage.prefix}/latest.json")
+        latest: dict[str, Any] | None = self.storage.get_json_or_none(f"{stage.prefix}/latest.json")
+        return latest
 
     def auto_start(self) -> Stage | None:
         """The earliest stage whose pinned parser has no stored run, or whose

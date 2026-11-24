@@ -24,10 +24,15 @@ functional: venv
 	COVERAGE_RCFILE=pyproject.toml COVERAGE_FILE=coverage/.coverage $(VENV)/bin/coverage report
 
 # Ruff, with pubrules' Python standard (pubrules-ruff.toml, which
-# pyproject.toml extends), as CI's lint job runs it.
+# pyproject.toml extends), then mypy on what pyproject.toml's [tool.mypy]
+# names, as CI's lint job runs them; ty's findings are shown, not enforced.
 lint: venv
 	$(VENV)/bin/ruff check .
 	$(VENV)/bin/ruff format --check .
+	$(VENV)/bin/mypy
+	@# ty reports beside mypy, on all of src, while we compare the two: the leading -
+	@# keeps its findings from failing `make lint` (or CI).
+	-$(VENV)/bin/ty check src
 
 # Format the code, and apply Ruff's safe fixes.
 fmt: venv

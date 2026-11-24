@@ -80,4 +80,5 @@ def to_parquet(rows: list[dict[str, Any]]) -> bytes:
 
 
 def from_parquet(data: bytes) -> list[dict[str, Any]]:
-    return pq.read_table(io.BytesIO(data)).to_pylist()
+    rows: list[dict[str, Any]] = pq.read_table(io.BytesIO(data)).to_pylist()
+    return rows

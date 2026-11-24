@@ -120,7 +120,7 @@ def for_file(rules: list[dict[str, Any]], name: str) -> list[dict[str, Any]]:
 def same(actual: Any, wanted: Any) -> bool:
     if isinstance(wanted, (int, float)) and not isinstance(wanted, bool):
         return isinstance(actual, (int, float)) and float(actual) == float(wanted)
-    return actual == wanted
+    return bool(actual == wanted)
 
 
 def describe(rule: dict[str, Any]) -> str:
