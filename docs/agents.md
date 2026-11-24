@@ -14,9 +14,9 @@ so don't edit it here. This page adds what is particular to this repository.
 | Role | Owns | Ask them about |
 | --- | --- | --- |
 | [App user](using.md) | nothing in the code | whether a page answers their question, and what words they use for things |
-| [App developer](app.md) | `src/app/`, `.streamlit/` | what a chart should show, how people explore the data, colours and layout |
-| [Ingest developer](ingest.md) | `src/ingest/`, `pipelines/`, `corrections/` | what the data means, whether a number is right, EEX's mistakes, parser versions |
-| [Operations](operations.md) | `infra/`, `.github/workflows/`, the cloud | anything that creates, changes or deletes a cloud resource, secrets, costs, access |
+| [App developer](app.md) | [`src/app/`](../src/app/), [`.streamlit/`](../.streamlit/) | what a chart should show, how people explore the data, colours and layout |
+| [Ingest developer](ingest.md) | [`src/ingest/`](../src/ingest/), [`pipelines/`](../pipelines/), [`corrections/`](../corrections/) | what the data means, whether a number is right, EEX's mistakes, parser versions |
+| [Operations](operations.md) | [`infra/`](../infra/), [`.github/workflows/`](../.github/workflows/), the cloud | anything that creates, changes or deletes a cloud resource, secrets, costs, access |
 
 Read the page of each role a change touches before you start, and follow its
 conventions table.
@@ -30,16 +30,16 @@ conventions table.
   logical, so it can be tested and debugged on its own. Use one pull request
   per step. Keep app, pipeline and infrastructure changes apart where you can.
 - **Tests first-class.** Every behaviour gets a Gherkin scenario with a
-  **When**, run against `bin/data` or the app as a person would use them.
+  **When**, run against [`bin/data`](../bin/data) or the app as a person would use them.
   Show a failing test before a fix where you can.
 - **Fail loudly.** Never hide an error, swallow a failed item, or publish
   partial data.
 - **Bump a parser's version** whenever its output changes. Correct EEX's
-  mistakes in `corrections/`, never in code.
+  mistakes in [`corrections/`](../corrections/), never in code.
 - **Mark temporary code** `DEBUG(#N)` with an open issue that says when it
   goes. CI fails once that issue closes.
-- **Never edit what pubrules manages** (`AGENTS.md`, the CI workflows,
-  `tests/requirements-pubrules.txt`). Change `pubrules.json` and run
+- **Never edit what pubrules manages** ([`AGENTS.md`](../AGENTS.md), the CI workflows,
+  [`tests/requirements-pubrules.txt`](../tests/requirements-pubrules.txt)). Change [`pubrules.json`](../pubrules.json) and run
   `./pubrules sync`.
 - **Say what you verified**, with the command or link, and what you didn't.
 - **Irreversible steps wait for a person**: deleting cloud resources or
@@ -61,12 +61,12 @@ Sustenaut's repositories share tools, all under
 
 | Tool | What it gives this repository |
 | --- | --- |
-| [pubrules](https://github.com/Sustenaut/pubrules) | the shared CI workflows, the files every repository keeps in step (`AGENTS.md` among them), the rules `pubrules sync --check` enforces, and `pubrules.json`, which declares this repository a `service` |
+| [pubrules](https://github.com/Sustenaut/pubrules) | the shared CI workflows, the files every repository keeps in step ([`AGENTS.md`](../AGENTS.md) among them), the rules `pubrules sync --check` enforces, and [`pubrules.json`](../pubrules.json), which declares this repository a `service` |
 | [pubtest](https://github.com/Sustenaut/pubtest) | the Gherkin steps and fake services every suite runs on. Its [GRAMMAR.md](https://github.com/Sustenaut/pubtest/blob/main/GRAMMAR.md) lists the steps you can use before writing new ones |
 | [pubhost](https://github.com/Sustenaut/pubhost) | the Terraform workflow and the image build action |
 | [pubsec](https://github.com/Sustenaut/pubsec) | secrets from Bitwarden, handed to a command without being written anywhere (`./pubsec`, `./with-secrets`) |
 | [pubdeploy](https://github.com/Sustenaut/pubdeploy) and [pubrel](https://github.com/Sustenaut/pubrel) | deploy checks and releases, for repositories that use them (this one deploys through its own workflows) |
-| [theme](https://github.com/Sustenaut/theme) | the design tokens and fonts every site uses. The app copies its colours into `.streamlit/config.toml` |
+| [theme](https://github.com/Sustenaut/theme) | the design tokens and fonts every site uses. The app copies its colours into [`.streamlit/config.toml`](../.streamlit/config.toml) |
 | shared-infra | the Google Cloud project, the Workload Identity pool, the service accounts and roles this stack may not make, and DNS |
 | auth.sustenaut.eu | the team sign-in. A site lets in people with its role (`data` here) |
 

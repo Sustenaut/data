@@ -22,11 +22,11 @@ Pick the page for what you do with this repository:
 
 | Path | What it is |
 | --- | --- |
-| `src/app/` | the Streamlit app: landing page and go-auctions page |
-| `src/ingest/` | the ingest pipeline: the generic stage runner (`core/`), the parsers (`parsers/`), the canonical schemas (`canonical/`) and the `data` command (`cli.py`) |
-| `pipelines/` | each pipeline's stages and their pinned parser versions |
-| `corrections/` | EEX's published mistakes and what the parser does about each |
-| `tests/` | the Gherkin suite (`features/`) and its steps (`steps/`) |
-| `infra/` | the Terraform for everything in Google Cloud |
-| `.github/workflows/` | CI, the deploys, and the ingest run by hand |
-| `bin/data` | the command line: `data run`, `data output`, `data corrections check`, `data app` |
+| [`src/app/`](src/app/) | the Streamlit app: landing page and go-auctions page |
+| [`src/ingest/`](src/ingest/) | the ingest pipeline: the generic stage runner ([`core/`](src/ingest/core/)), the parsers ([`parsers/`](src/ingest/parsers/)), the canonical schemas ([`canonical/`](src/ingest/canonical/)) and the `data` command ([`cli.py`](src/ingest/cli.py)) |
+| [`pipelines/`](pipelines/) | each pipeline's stages and their pinned parser versions |
+| [`corrections/`](corrections/) | EEX's published mistakes and what the parser does about each |
+| [`tests/`](tests/) | the Gherkin suite ([`features/`](tests/features/)) and its steps ([`steps/`](tests/steps/)) |
+| [`infra/`](infra/) | the Terraform for everything in Google Cloud |
+| [`.github/workflows/`](.github/workflows/) | CI, the deploys, and the ingest run by hand |
+| [`bin/data`](bin/data) | the command line: `data run`, `data output`, `data corrections check`, `data app` |

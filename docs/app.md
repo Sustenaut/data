@@ -1,16 +1,16 @@
 # Developing the app
 
-You own how people explore the data: the Streamlit app in `src/app/`, which
+You own how people explore the data: the Streamlit app in [`src/app/`](../src/app/), which
 is the whole of data.sustenaut.eu. It has a landing page at `/` and the
 go-auctions page at `/go-auctions`. It only reads data. The database
 it shows is built by the [ingest pipeline](ingest.md).
 
-- `streamlit_app.py` is the entry point: it routes `/` and `/go-auctions`.
-- `data.py` holds every number the page shows (filters, bins, statistics,
+- [`streamlit_app.py`](../src/app/streamlit_app.py) is the entry point: it routes `/` and `/go-auctions`.
+- [`data.py`](../src/app/data.py) holds every number the page shows (filters, bins, statistics,
   regions), with no Streamlit in it, so it is tested on its own.
-- `page.py` draws: the sidebar, the tabs, the charts, the sticky header.
-- `france-regions.geojson` is the regions map, drawn without any map service.
-- `.streamlit/config.toml` (at the repository root) is the theme: Sustenaut's
+- [`page.py`](../src/app/page.py) draws: the sidebar, the tabs, the charts, the sticky header.
+- [`france-regions.geojson`](../src/app/france-regions.geojson) is the regions map, drawn without any map service.
+- [`.streamlit/config.toml`](../.streamlit/config.toml) (at the repository root) is the theme: Sustenaut's
   colours and fonts, light and dark.
 
 ## Running it locally
@@ -35,14 +35,14 @@ Streamlit reloads the page when you save a file.
 
 | Convention | Enforced by |
 | --- | --- |
-| Every behaviour has a Gherkin scenario in `tests/features/app.feature`, and every scenario has a **When** | the suite in CI (`make functional`), and pubrules' TEST-04 in `pubrules sync --check` |
-| Numbers live in `data.py` and are tested there, without a browser. `page.py` only draws | review. The app's scenarios run the page with Streamlit's `AppTest` (`tests/steps/test_app.py`) |
+| Every behaviour has a Gherkin scenario in [`tests/features/app.feature`](../tests/features/app.feature), and every scenario has a **When** | the suite in CI (`make functional`), and pubrules' TEST-04 in `pubrules sync --check` |
+| Numbers live in [`data.py`](../src/app/data.py) and are tested there, without a browser. `page.py` only draws | review. The app's scenarios run the page with Streamlit's `AppTest` ([`tests/steps/test_app.py`](../tests/steps/test_app.py)) |
 | New code is covered by tests, with no new issues or duplication | SonarQube Cloud's quality gate, part of `ci / passed` |
-| Colours and fonts come from Sustenaut/theme. Each technology keeps its colour (`data.COLOURS`) whatever is filtered | review. The theme's tokens are copied into `.streamlit/config.toml` and `page.INKS` |
+| Colours and fonts come from Sustenaut/theme. Each technology keeps its colour (`data.COLOURS`) whatever is filtered | review. The theme's tokens are copied into [`.streamlit/config.toml`](../.streamlit/config.toml) and `page.INKS` |
 | Text on the page says what a number is and how it was aggregated, in plain words | review |
 | Fail loudly: if the data cannot be read, the page says why instead of showing empty charts | the scenarios for a missing or unreadable store |
-| Temporary code carries `DEBUG(#N)` with an open issue | the **debug markers** workflow (`bin/check-debug-markers`) |
-| Files pubrules manages (CI workflows, `AGENTS.md`, `tests/requirements-pubrules.txt`) are never edited by hand | `pubrules sync --check` |
+| Temporary code carries `DEBUG(#N)` with an open issue | the **debug markers** workflow ([`bin/check-debug-markers`](../bin/check-debug-markers)) |
+| Files pubrules manages (CI workflows, [`AGENTS.md`](../AGENTS.md), [`tests/requirements-pubrules.txt`](../tests/requirements-pubrules.txt)) are never edited by hand | `pubrules sync --check` |
 
 Run the app's scenarios alone while you work:
 
@@ -53,12 +53,12 @@ Run the app's scenarios alone while you work:
 ## Debugging
 
 **Locally.** Errors appear on the page, with a traceback in the terminal that
-runs `bin/data app`. To check a number, call the function in `data.py` from a
+runs `bin/data app`. To check a number, call the function in [`data.py`](../src/app/data.py) from a
 Python shell on a copy of the database. Chart and layout problems are easiest
 to see in a screenshot: Playwright with `colorScheme: 'dark'` checks dark mode.
 
-**Deployed.** The app runs in the Cloud Run service `data-app`, behind
-oauth2-proxy in the same service. Its logs:
+**Deployed.** The app runs in the Cloud Run service [`data-app`](https://console.cloud.google.com/run/detail/europe-north1/data-app?project=sustenaut), behind
+oauth2-proxy in the same service. Its logs, in [Logs Explorer](https://console.cloud.google.com/logs/query?project=sustenaut):
 
 ```
 resource.type="cloud_run_revision" resource.labels.service_name="data-app"
@@ -80,8 +80,8 @@ oauth2-proxy and the team's roles, not the app: see [Operations](operations.md).
 | [PyArrow](https://arrow.apache.org/docs/python/) | the tables between DuckDB and the charts |
 | [Nunito and Nunito Sans](https://github.com/Sustenaut/theme) | Sustenaut's fonts, from Sustenaut/theme through jsDelivr |
 
-`requirements-app.lock` pins them, with hashes, for the image
-(`app.Dockerfile`). `make runtime-lock` writes it.
+[`requirements-app.lock`](../requirements-app.lock) pins them, with hashes, for the image
+([`app.Dockerfile`](../app.Dockerfile)). `make runtime-lock` writes it.
 
 Services the app depends on:
 
