@@ -34,7 +34,7 @@ env:
 jobs:
   ingest:
     if: vars.DEPLOY_CI == 'on' && github.ref == 'refs/heads/main'
-    runs-on: sustenaut-ci
+    runs-on: ubuntu-latest
     timeout-minutes: 70
     steps:
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0

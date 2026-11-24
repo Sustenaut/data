@@ -120,7 +120,7 @@ secrets, as CI does.
 
 Services: Google Cloud (Cloud Run, Cloud Scheduler, Cloud Storage, BigQuery,
 Artifact Registry, Secret Manager), auth.sustenaut.eu (Keycloak, the team
-realm), GitHub Actions on the `sustenaut-ci` runners, and SonarQube Cloud.
+realm), GitHub Actions on GitHub's hosted runners (the repository is public), and SonarQube Cloud.
 
 The code that runs is described in [Developing the app](app.md) and
 [Developing the ingest pipeline](ingest.md).
