@@ -188,6 +188,11 @@ def main(argv: list[str] | None = None) -> int:
         except (pipeline_mod.PipelineError, RunError, OSError, ValueError) as error:
             print(f"data: {error}", file=sys.stderr)
             return 2
+    return run_pipeline(args)
+
+
+def run_pipeline(args: argparse.Namespace) -> int:
+    """An ingest run of the pipeline, from stage --from to --to."""
     try:
         pipeline = pipeline_mod.load(args.pipeline)
         storage = LocalStorage(args.store, args.store_uri)

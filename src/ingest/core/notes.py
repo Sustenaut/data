@@ -41,7 +41,7 @@ def note_id(kind: str, subject: str, source: str) -> str:
     return hashlib.sha256(f"{kind}\x1f{subject}\x1f{source}".encode()).hexdigest()[:16]
 
 
-def record(
+def record(  # noqa: PLR0913 - a run log row's columns, all keyword-only
     note: Note,
     *,
     run_id: str,

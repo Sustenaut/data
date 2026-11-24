@@ -204,12 +204,43 @@ def rows_of(name: str, data: bytes) -> tuple[str | None, list[tuple[int, list[An
         workbook.close()
 
 
-def parse(
-    name: str, sha256: str, data: bytes, parser: str, version: str, rules: list[dict[str, Any]] | None = None
+def parse(  # noqa: PLR0913 - the parser's one entry point: the file, its parser and the run's rules
+    name: str,
+    sha256: str,
+    data: bytes,
+    parser: str,
+    version: str,
+    rules: list[dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[Note]]:
     auction = from_name(name)
     sheet, rows = rows_of(name, data)
     rows = [(i, [clean(c) for c in cells]) for i, cells in rows]
+    participants, header_at, columns = read_header(name, rows)
+    try:
+        corrected, notes = corrections.apply(name, read_published(name, rows, header_at, columns), rules or [])
+    except corrections.CorrectionError as error:
+        raise Unexpected(str(error)) from error
+
+    # What every segment of this file shares: the auction, its participants and the source.
+    fixed = {
+        "auction": auction,
+        "participants": participants,
+        "sheet": sheet,
+        "sha256": sha256,
+        "parser": parser,
+        "version": version,
+    }
+    seen: set[tuple[str, str]] = set()
+    out = [segment(name, record, seen, fixed) for record in corrected]
+    if not out:
+        raise Unexpected(f"{name} has no result rows")
+    notes += check_segments(name, corrected, rules or [])
+    return out, notes
+
+
+def read_header(name: str, rows: list[tuple[int, list[Any]]]) -> tuple[float, int, dict[str, int]]:
+    """The number of participants, the header row's index, and the position
+    of each known column in it."""
     participants, header_at, columns = None, None, {}
     for index, cells in rows:
         first = cells[0] if cells else None
@@ -218,15 +249,7 @@ def parse(
             participants = number(values[0] if values else None, "the number of participants", f"{name} row {index}")
         if isinstance(first, str) and first.lower().startswith("région / region"):
             header_at = index
-            for position, cell in enumerate(cells):
-                if cell in NOTHING:
-                    continue
-                label = str(cell).lower()
-                key = next((v for k, v in COLUMNS.items() if label.startswith(k)), None)
-                if key is None and not label.startswith(IGNORED):
-                    raise Unexpected(f"{name} row {index}: unknown column {cell!r}")
-                if key:
-                    columns[key] = position
+            columns = read_columns(name, index, cells)
             break
     if header_at is None:
         raise Unexpected(f"{name} has no header row starting 'Région / Region'")
@@ -235,8 +258,28 @@ def parse(
         raise Unexpected(f"{name}: the header lacks {', '.join(missing)}")
     if participants is None:
         raise Unexpected(f"{name} gives no number of participants")
+    return participants, header_at, columns
 
-    # The rows as published, with their numbers read, for the corrections to match.
+
+def read_columns(name: str, index: int, cells: list[Any]) -> dict[str, int]:
+    """Each known column's position in the header row; an unknown one fails."""
+    columns = {}
+    for position, cell in enumerate(cells):
+        if cell in NOTHING:
+            continue
+        label = str(cell).lower()
+        key = next((v for k, v in COLUMNS.items() if label.startswith(k)), None)
+        if key is None and not label.startswith(IGNORED):
+            raise Unexpected(f"{name} row {index}: unknown column {cell!r}")
+        if key:
+            columns[key] = position
+    return columns
+
+
+def read_published(
+    name: str, rows: list[tuple[int, list[Any]]], header_at: int, columns: dict[str, int]
+) -> list[dict[str, Any]]:
+    """The rows as published, with their numbers read, for the corrections to match."""
     published = []
     for index, cells in rows:
         if index <= header_at or all(c in NOTHING for c in cells):
@@ -254,65 +297,58 @@ def parse(
                 "winners": number(value["winners"], "the number of winners", where),
             }
         )
-    try:
-        corrected, notes = corrections.apply(name, published, rules or [])
-    except corrections.CorrectionError as error:
-        raise Unexpected(str(error)) from error
+    return published
 
-    out, seen = [], set()
-    for record in corrected:
-        where = f"{name} row {record['row']}"
-        region_label, technology_label = record["region"], record["technology"]
-        region = REGIONS.get(str(region_label).lower())
-        technology = TECHNOLOGIES.get(str(technology_label).lower())
-        if region is None:
-            raise Unexpected(f"{where}: unknown region {region_label!r}")
-        if technology is None:
-            raise Unexpected(f"{where}: unknown technology {technology_label!r}")
-        if (region, str(technology_label).lower()) in seen:
-            raise Unexpected(f"{where}: {region_label} {technology_label} appears twice")
-        seen.add((region, str(technology_label).lower()))
-        offered, price, winners = record["volume_offered"], record["price"], record["winners"]
-        sold = record["volume_sold"] or 0.0
-        if offered is not None and sold > offered:
-            raise Unexpected(f"{where}: {sold:g} MWh sold is more than the {offered:g} MWh offered")
-        if price is not None and not sold:
-            raise Unexpected(f"{where}: a price of {price:g} with nothing sold")
-        out.append(
-            {
-                "provider": "eex",
-                "market": "FR",
-                "certificate_type": "GO",
-                "energy_carrier": "electricity",
-                **auction,
-                "segment_level": "region_x_technology",
-                "region": region,
-                "technology": technology,
-                "volume_offered_mwh": offered,
-                "volume_allocated_mwh": sold,
-                "price_weighted_avg_eur_mwh": price,
-                "price_min_eur_mwh": None,
-                "price_max_eur_mwh": None,
-                "reserve_price_eur_mwh": None,
-                "bidders_count": int(participants),
-                "winners_count": int(winners) if winners is not None else None,
-                "extras": json.dumps(
-                    {"region_label": region_label, "technology_label": technology_label},
-                    ensure_ascii=False,
-                    sort_keys=True,
-                ),
-                "source_name": name,
-                "source_sha256": sha256,
-                "source_sheet": sheet,
-                "source_row": record["row"],
-                "parser_name": parser,
-                "parser_version": version,
-            }
-        )
-    if not out:
-        raise Unexpected(f"{name} has no result rows")
-    notes += check_segments(name, corrected, rules or [])
-    return out, notes
+
+def segment(name: str, record: dict[str, Any], seen: set[tuple[str, str]], fixed: dict[str, Any]) -> dict[str, Any]:
+    """One corrected row as a canonical segment, checked: a known region and
+    technology, once each, and no more sold than offered."""
+    where = f"{name} row {record['row']}"
+    region_label, technology_label = record["region"], record["technology"]
+    region = REGIONS.get(str(region_label).lower())
+    technology = TECHNOLOGIES.get(str(technology_label).lower())
+    if region is None:
+        raise Unexpected(f"{where}: unknown region {region_label!r}")
+    if technology is None:
+        raise Unexpected(f"{where}: unknown technology {technology_label!r}")
+    if (region, str(technology_label).lower()) in seen:
+        raise Unexpected(f"{where}: {region_label} {technology_label} appears twice")
+    seen.add((region, str(technology_label).lower()))
+    offered, price, winners = record["volume_offered"], record["price"], record["winners"]
+    sold = record["volume_sold"] or 0.0
+    if offered is not None and sold > offered:
+        raise Unexpected(f"{where}: {sold:g} MWh sold is more than the {offered:g} MWh offered")
+    if price is not None and not sold:
+        raise Unexpected(f"{where}: a price of {price:g} with nothing sold")
+    return {
+        "provider": "eex",
+        "market": "FR",
+        "certificate_type": "GO",
+        "energy_carrier": "electricity",
+        **fixed["auction"],
+        "segment_level": "region_x_technology",
+        "region": region,
+        "technology": technology,
+        "volume_offered_mwh": offered,
+        "volume_allocated_mwh": sold,
+        "price_weighted_avg_eur_mwh": price,
+        "price_min_eur_mwh": None,
+        "price_max_eur_mwh": None,
+        "reserve_price_eur_mwh": None,
+        "bidders_count": int(fixed["participants"]),
+        "winners_count": int(winners) if winners is not None else None,
+        "extras": json.dumps(
+            {"region_label": region_label, "technology_label": technology_label},
+            ensure_ascii=False,
+            sort_keys=True,
+        ),
+        "source_name": name,
+        "source_sha256": fixed["sha256"],
+        "source_sheet": fixed["sheet"],
+        "source_row": record["row"],
+        "parser_name": fixed["parser"],
+        "parser_version": fixed["version"],
+    }
 
 
 def check_segments(name: str, rows: list[dict[str, Any]], rules: list[dict[str, Any]]) -> list[Note]:

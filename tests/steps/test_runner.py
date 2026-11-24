@@ -8,18 +8,18 @@ from __future__ import annotations
 import io
 import json
 import os
-import signal
-import subprocess
-import zipfile
 import re
 import shlex
 import shutil
+import signal
+import subprocess
+import zipfile
 from pathlib import Path
 from urllib.parse import quote
 
+import pubtest.plugin
 import pyarrow.parquet as pq
 import pytest
-import pubtest.plugin
 from pubtest.core import Completed, dig, same
 from pytest_bdd import given, parsers, scenarios, then
 

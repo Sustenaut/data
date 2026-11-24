@@ -89,22 +89,28 @@ def load(path: str | Path) -> list[dict[str, Any]]:
         if rule["id"] in seen:
             raise CorrectionError(f"{where} appears twice")
         seen.add(rule["id"])
-        if rule["kind"] not in KINDS:
-            raise CorrectionError(f"{where}: kind must be one of {', '.join(KINDS)}")
-        if rule["kind"] in ROW_KINDS and (not isinstance(rule.get("row"), dict) or not rule["row"]):
-            raise CorrectionError(f"{where}: row must give the fields of the row as published")
-        if rule["kind"] == "wrong_row":
-            if rule.get("action") not in ACTIONS:
-                raise CorrectionError(f"{where}: action must be one of {', '.join(ACTIONS)}")
-            if rule["action"] == "set" and not isinstance(rule.get("set"), dict):
-                raise CorrectionError(f"{where}: action set needs `set`, the fields to change")
-        if rule["kind"] in ROW_KINDS:
-            excerpt = rule.get("excerpt")
-            if not rule.get("source_sha256") or not isinstance(excerpt, list) or not excerpt:
-                raise CorrectionError(f"{where} needs source_sha256 and an excerpt of the rows as published")
-            if not all(isinstance(r, dict) and isinstance(r.get("row"), int) for r in excerpt):
-                raise CorrectionError(f"{where}: each excerpt row needs its row number, `row`")
+        check_rule(where, rule)
     return rules
+
+
+def check_rule(where: str, rule: dict[str, Any]) -> None:
+    """One rule's kind, and what that kind needs: the row as published, the
+    action, and the evidence (the file's sha256 and an excerpt)."""
+    if rule["kind"] not in KINDS:
+        raise CorrectionError(f"{where}: kind must be one of {', '.join(KINDS)}")
+    if rule["kind"] in ROW_KINDS and (not isinstance(rule.get("row"), dict) or not rule["row"]):
+        raise CorrectionError(f"{where}: row must give the fields of the row as published")
+    if rule["kind"] == "wrong_row":
+        if rule.get("action") not in ACTIONS:
+            raise CorrectionError(f"{where}: action must be one of {', '.join(ACTIONS)}")
+        if rule["action"] == "set" and not isinstance(rule.get("set"), dict):
+            raise CorrectionError(f"{where}: action set needs `set`, the fields to change")
+    if rule["kind"] in ROW_KINDS:
+        excerpt = rule.get("excerpt")
+        if not rule.get("source_sha256") or not isinstance(excerpt, list) or not excerpt:
+            raise CorrectionError(f"{where} needs source_sha256 and an excerpt of the rows as published")
+        if not all(isinstance(r, dict) and isinstance(r.get("row"), int) for r in excerpt):
+            raise CorrectionError(f"{where}: each excerpt row needs its row number, `row`")
 
 
 def for_file(rules: list[dict[str, Any]], name: str) -> list[dict[str, Any]]:

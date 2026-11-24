@@ -46,7 +46,7 @@ jobs:
     needs: [tested]
     if: ${{ needs.tested.outputs.tested != 'true' }}
     uses: Sustenaut/pubrules/.github/workflows/job-python-lint.yml@542935feec5b50793030c4a83bcbb2b1ec5941cc # v0.49.0
-    with: {"setup": "make venv", "lint": ".venv/bin/ruff format --check ."}
+    with: {"setup": "make venv", "lint": "make lint"}
 
   sonar:
     name: ci
