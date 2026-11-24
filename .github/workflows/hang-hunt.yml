@@ -1,0 +1,45 @@
+# DEBUG(#24): runs the merge scenario that hangs in CI over and over on
+# sustenaut-ci, where it hangs and nowhere else, so the stacks of a hang show
+# up. Runs only on pull requests that change this file; remove with #24's fix.
+name: hang hunt
+
+on:
+  pull_request:
+    paths: [.github/workflows/hang-hunt.yml]
+
+permissions: { contents: read }
+
+jobs:
+  hunt:
+    runs-on: sustenaut-ci
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        way: [scenario, suite]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with: { python-version: '3.14' }
+      - run: make venv
+      - name: The scenario 200 times, as many at once as the runner has CPUs
+        if: matrix.way == 'scenario'
+        run: |
+          mkdir -p hunt
+          seq 1 200 | xargs -P "$(nproc)" -I{} sh -c '
+            cd tests && COVERAGE_RCFILE=$GITHUB_WORKSPACE/pyproject.toml COVERAGE_FILE=$GITHUB_WORKSPACE/hunt/.c{} \
+              SOLDERA_BIN_DIR=$GITHUB_WORKSPACE/bin ../.venv/bin/coverage run -m pytest -q -p no:cacheprovider \
+              steps/test_runner.py -k two_files_fails > ../hunt/out.{} 2>&1; echo "{} $?"' | sort -n > hunt/codes
+          awk '{print $2}' hunt/codes | sort | uniq -c
+          for f in $(grep -l "still running" hunt/out.* | head -3); do echo "=== $f"; cat "$f"; done
+          ! grep -q "still running" hunt/out.*
+      - name: The whole suite 6 times, as CI runs it
+        if: matrix.way == 'suite'
+        run: |
+          hung=0
+          for i in 1 2 3 4 5 6; do
+            make functional > "suite.$i" 2>&1 || true
+            grep -E "passed|failed" "suite.$i" | tail -1
+            if grep -q "still running" "suite.$i"; then hung=1; cat "suite.$i"; fi
+          done
+          exit $hung

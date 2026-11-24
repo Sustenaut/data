@@ -29,7 +29,6 @@ scenarios("runner.feature", "run_log.feature", "discover.feature", "download.fea
 REPOSITORY = Path(__file__).resolve().parents[2]
 
 
-# DEBUG(#24): stacks for the merge scenario's CI hang; remove with its fix.
 def run_program(argv, stdin, cwd, env, timeout) -> Completed:
     """pubtest's run_program, except that a program still running at the
     timeout is stopped with SIGABRT under PYTHONFAULTHANDLER, so the failure
@@ -62,7 +61,6 @@ def run_program(argv, stdin, cwd, env, timeout) -> Completed:
     return Completed(argv, proc.returncode, out, err)
 
 
-# DEBUG(#24): goes with run_program above.
 @pytest.fixture(autouse=True)
 def stacks_on_timeout(monkeypatch):
     """pubtest's "I run" step runs programs through this run_program too."""
