@@ -503,9 +503,13 @@ MASTHEAD_CSS = """<style>
   overflow: hidden; text-overflow: ellipsis; }}
 .st-key-masthead [data-testid="stCaptionContainer"] {{ margin-top: 1rem; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; }}
-[data-testid="stSidebarHeader"] {{ position: sticky; top: 0; z-index: 999990; background: {sunken}; }}
-[data-testid="stLayoutWrapper"]:has(> .st-key-filters_title) {{ position: sticky; top: {sidebar_header}; z-index: 999989;
-  background: {sunken}; }}
+[data-testid="stSidebarHeader"] {{ position: sticky; top: 0; z-index: 999990; background: transparent;
+  height: {sidebar_header}; margin-bottom: 0 !important; }}
+[data-testid="stLayoutWrapper"]:has(> .st-key-filters_title) {{ position: sticky; top: 0; z-index: 999989;
+  background: {sunken}; height: {sidebar_header} !important; margin-top: -{sidebar_header};
+  border-bottom: 1px solid {grid}; display: flex; align-items: center; margin-bottom: 0.75rem;
+  box-shadow: 0 0.75rem 0 0 {sunken}; }}
+.st-key-filters_title h2 {{ padding: 0; font-size: 1.5rem; line-height: {sidebar_header}; }}
 [data-testid="stTabs"] [role="tablist"] {{ position: sticky; top: 9rem; z-index: 999989;
   background: {ground}; }}
 </style>"""
@@ -514,7 +518,8 @@ MASTHEAD_CSS = """<style>
 def masthead(caption: str = "") -> None:
     """The page's title and its caption, kept at the top as the page scrolls."""
     colours = inks()
-    st.html(MASTHEAD_CSS.format(ground=colours["surface"], sunken=colours["sunken"], sidebar_header="3.75rem"))
+    st.html(MASTHEAD_CSS.format(ground=colours["surface"], sunken=colours["sunken"], grid=colours["grid"],
+                                   sidebar_header="3.75rem"))
     with st.container(key="masthead"):
         st.title("French guarantees of origin auctions", anchor=False)
         if caption:
