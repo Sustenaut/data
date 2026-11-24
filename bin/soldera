@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-# soldera: run an ingest pipeline. `soldera --help` lists the commands.
-# Runs src/soldera with the repository's .venv, as the suite and CI do.
-set -euo pipefail
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-python="${SOLDERA_PYTHON:-$here/.venv/bin/python}"
-[ -x "$python" ] || python=python3
-PYTHONPATH="$here/src${PYTHONPATH:+:$PYTHONPATH}" exec "$python" -m soldera "$@"

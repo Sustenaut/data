@@ -1,7 +1,7 @@
 # Builds the app's image (app.Dockerfile) from main, checks that it serves
 # the landing page and the power-auctions page, pushes it, keeps a copy of
 # oauth2-proxy beside it, and points the soldera-app service's app container
-# at it. It runs as soldera-deploy (infra/), like deploy.yml, and waits for
+# at it. It runs as soldera-deploy (infra/), like deploy-ingest.yml, and waits for
 # the same repository variable DEPLOY_CI. Until infra/'s serve_app is true
 # there is no service: it then pushes the images, which the service's first
 # revision starts from, and stops there. The repository variable APP_SERVICE
@@ -45,7 +45,7 @@ jobs:
           tags: ${{ env.IMAGE }}:${{ github.sha }}
           scope: soldera-app
           file: app.Dockerfile
-          build-args: SOLDERA_COMMIT=${{ github.sha }}
+          build-args: DATA_COMMIT=${{ github.sha }}
           no-cache: ${{ inputs.no-cache || false }}
 
       # Streamlit answers its health check once it serves, and every page

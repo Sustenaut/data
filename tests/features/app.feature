@@ -123,8 +123,8 @@ Feature: The power-auctions app's numbers
 
     Examples:
       | field               | value                                                  | link                                                   |
-      | github_run_url      | https://github.com/Sustenaut/soldera/actions/runs/7    | https://github.com/Sustenaut/soldera/actions/runs/7    |
-      | cloud_run_execution | soldera-ingest-abc12                                   | https://console.example/executions/soldera-ingest-abc12 |
+      | github_run_url      | https://github.com/Sustenaut/data/actions/runs/7    | https://github.com/Sustenaut/data/actions/runs/7    |
+      | cloud_run_execution | data-ingest-abc12                                   | https://console.example/executions/data-ingest-abc12 |
       | nothing             | -                                                      | none                                                   |
 
   Scenario: The app draws both pages from the database without an error

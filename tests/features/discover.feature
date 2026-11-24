@@ -6,7 +6,7 @@ Feature: Stage 1, discover: the files the EEX page links to
   against a fake EEX.
 
   Background:
-    Given the program under test is "soldera"
+    Given the program under test is "data"
     And a scratch directory
     And the repository's pipeline "eex-french-power-auctions"
 
@@ -42,7 +42,7 @@ Feature: Stage 1, discover: the files the EEX page links to
       </tbody></table>
       </body></html>
       """
-    When I run "soldera run pipeline.yaml --to discover"
+    When I run "data run pipeline.yaml --to discover"
     Then it succeeds
     And it prints "discover: eex-french-auction-page@1.0.0 succeeded: 1 items, 1 built, 0 cached, 0 failed"
     And the published "files.json" of "discover" lists:
@@ -60,15 +60,15 @@ Feature: Stage 1, discover: the files the EEX page links to
       <h2>Guarantees of Origin Data</h2>
       <a href="/fileadmin/GO/results.zip">zip</a>
       """
-    And I ran "soldera run pipeline.yaml --to discover"
-    When I run "soldera run pipeline.yaml --to discover"
+    And I ran "data run pipeline.yaml --to discover"
+    When I run "data run pipeline.yaml --to discover"
     Then it succeeds
     And it prints "discover: eex-french-auction-page@1.0.0 succeeded: 1 items, 1 built, 0 cached, 0 failed"
     And the "eex" service was asked "GET /en/markets/energy-certificates/french-auctions-power" 2 times
 
   Scenario: A page EEX cannot serve fails the stage and says what it answered
     Given the "eex" service answers "GET /en/markets/energy-certificates/french-auctions-power" with 503
-    When I run "soldera run pipeline.yaml --to discover"
+    When I run "data run pipeline.yaml --to discover"
     Then the exit code is 1
     And stderr mentions "discover: page failed: HttpError"
     And stderr mentions "answered 503"
@@ -79,6 +79,6 @@ Feature: Stage 1, discover: the files the EEX page links to
       <h2>Guarantees of Origin Data</h2>
       <p>Results are now published elsewhere.</p>
       """
-    When I run "soldera run pipeline.yaml --to discover"
+    When I run "data run pipeline.yaml --to discover"
     Then the exit code is 1
     And stderr mentions "has the page layout changed?"

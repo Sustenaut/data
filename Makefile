@@ -1,4 +1,4 @@
-# soldera: ingest pipelines for data.sustenaut.eu. CI runs `make venv` then
+# data.sustenaut.eu: its ingest pipelines and app. CI runs `make venv` then
 # `make functional` (pubrules.json's ci block).
 
 PYTHON ?= python3
@@ -13,12 +13,12 @@ $(VENV)/.done: tests/requirements.lock
 	tests/install-lock $(VENV)/bin/pip
 	touch $@
 
-# The Gherkin suite, run against bin/soldera on every core, with its coverage
-# (and that of every soldera it starts) in coverage/coverage.xml.
+# The Gherkin suite, run against bin/data on every core, with its coverage
+# (and that of every bin/data it starts) in coverage/coverage.xml.
 functional: venv
 	rm -rf coverage && mkdir coverage
 	cd tests && COVERAGE_RCFILE=$(CURDIR)/pyproject.toml COVERAGE_FILE=$(CURDIR)/coverage/.coverage \
-	  SOLDERA_BIN_DIR=$(CURDIR)/bin ../$(VENV)/bin/coverage run -m pytest -n auto
+	  DATA_BIN_DIR=$(CURDIR)/bin ../$(VENV)/bin/coverage run -m pytest -n auto
 	COVERAGE_RCFILE=pyproject.toml COVERAGE_FILE=coverage/.coverage $(VENV)/bin/coverage combine -q
 	COVERAGE_RCFILE=pyproject.toml COVERAGE_FILE=coverage/.coverage $(VENV)/bin/coverage xml -q
 	COVERAGE_RCFILE=pyproject.toml COVERAGE_FILE=coverage/.coverage $(VENV)/bin/coverage report

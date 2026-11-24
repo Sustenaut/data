@@ -17,7 +17,8 @@ import subprocess
 import sys
 import urllib.request
 
-MARKER = re.compile(r"DEBUG\((#(\d+))?")
+# DEBUG(#N) itself, as the docs write the convention, is not a marker.
+MARKER = re.compile(r"DEBUG\((?!#N\))(#(\d+))?")
 SELF = {"bin/check-debug-markers", ".github/workflows/debug-markers.yml"}
 
 

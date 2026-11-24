@@ -1,8 +1,11 @@
-# soldera runbook
+# Runbook
 
-The ingest runs as the Cloud Run job `soldera-ingest` in the `sustenaut`
+What to do when an ingest run fails. Problems with the site, and the bigger
+picture, are in [Operations](operations.md).
+
+The ingest pipeline runs as the Cloud Run job `soldera-ingest` in the `sustenaut`
 project: every Thursday at 07:00 Paris time from Cloud Scheduler, and by hand
-from the **ingest** workflow. A failed run fails loudly. Nothing is published,
+from the **run ingest pipeline** workflow. A failed run fails loudly. Nothing is published,
 later stages keep their last good run, and the job exits 1.
 
 ## Where things are
@@ -16,7 +19,7 @@ later stages keep their last good run, and the job exits 1.
 | Data notes | [`soldera.stage_notes`](https://console.cloud.google.com/bigquery?project=sustenaut&ws=!1m5!1m4!4m3!1ssustenaut!2ssoldera!3sstage_notes), every stage run's notes.parquet |
 | The job's executions | [Cloud Run, soldera-ingest](https://console.cloud.google.com/run/jobs/details/europe-north1/soldera-ingest/executions?project=sustenaut) |
 | The store | [`gs://sustenaut-soldera-store`](https://console.cloud.google.com/storage/browser/sustenaut-soldera-store?project=sustenaut) |
-| Workflows | [ingest](https://github.com/Sustenaut/soldera/actions/workflows/ingest.yml), [deploy](https://github.com/Sustenaut/soldera/actions/workflows/deploy.yml), [terraform](https://github.com/Sustenaut/soldera/actions/workflows/terraform.yml) |
+| Workflows | [run ingest pipeline](https://github.com/Sustenaut/soldera/actions/workflows/run-ingest.yml), [deploy ingest pipeline](https://github.com/Sustenaut/soldera/actions/workflows/deploy-ingest.yml), [deploy app](https://github.com/Sustenaut/soldera/actions/workflows/deploy-app.yml), [terraform](https://github.com/Sustenaut/soldera/actions/workflows/terraform.yml) |
 
 The views are made by `infra/views.tf`, and their SQL is in `infra/sql/`.
 Open one and use **Query** (or `SELECT * FROM` it) to run it.
@@ -65,14 +68,14 @@ Open one and use **Query** (or `SELECT * FROM` it) to run it.
 
    ```
    mkdir -p store && gcloud storage cp -r "gs://sustenaut-soldera-store/*" ./store
-   soldera run pipelines/eex-french-power-auctions.yaml --store ./store --from STAGE --to STAGE
+   bin/data run pipelines/eex-french-power-auctions.yaml --store ./store --from STAGE --to STAGE
    ```
 
 ## Common failures
 
 | Error | What it means | What to do |
 | --- | --- | --- |
-| `download: … failed after 3 tries` | EEX's site timed out or cut a transfer off three times | Re-run with **ingest**, `from: download` |
+| `download: … failed after 3 tries` | EEX's site timed out or cut a transfer off three times | Re-run with **run ingest pipeline**, `from: download` |
 | A correction rule is no longer needed | EEX fixed a file that `corrections/eex-french-power-auctions.yaml` corrects | Remove the rule in a PR, then re-run from `parse` |
 | A file has the wrong number of segments, or rows out of order | EEX changed a file's layout | Add a correction rule with an excerpt, or a new parser version, in a PR |
 | `merge: … has REGION TECH twice` or `comes from N files` | Two files give the same auction | Find both files in `failed_items`, and decide which one wins in `corrections/` |
@@ -80,7 +83,7 @@ Open one and use **Query** (or `SELECT * FROM` it) to run it.
 
 ## Re-running
 
-From [Actions, ingest, Run workflow](https://github.com/Sustenaut/soldera/actions/workflows/ingest.yml):
+From [Actions, run ingest pipeline, Run workflow](https://github.com/Sustenaut/soldera/actions/workflows/run-ingest.yml):
 `from` and `to` pick the stages, and `force` rebuilds items even when their
 inputs are unchanged. Stages before `from` keep their last good run. The new
 run's rows have `trigger = 'rerun'` and `rerun_from_stage` set.

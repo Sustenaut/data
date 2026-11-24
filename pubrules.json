@@ -1,6 +1,6 @@
 {
   "kind": "service",
-  "bin": "soldera",
+  "bin": "data",
   "ci": {
     "events": [
       "pr",
@@ -10,7 +10,7 @@
     "with": {
       "setup": "make venv",
       "test": "make functional",
-      "shellcheck": "bin/soldera",
+      "shellcheck": "bin/data",
       "terraform-dir": "infra"
     }
   },

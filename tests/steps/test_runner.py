@@ -1,6 +1,6 @@
-"""soldera's own steps, beside pubtest's: what the store, the run log and the
-notes hold after `soldera run`. Every path is in the scenario's scratch
-directory, where `soldera run` keeps its store (store/) and run log
+"""This repository's own steps, beside pubtest's: what the store, the run log and the
+notes hold after `data run`. Every path is in the scenario's scratch
+directory, where `data run` keeps its store (store/) and run log
 (runs.jsonl) by default."""
 
 from __future__ import annotations
@@ -458,7 +458,7 @@ def metadata_server(ctx, pubtest_ctx, monkeypatch, name: str, token_status: int,
     account = "GET /computeMetadata/v1/instance/service-accounts/default/"
     service.answer("GET /", 200, "", plain)
     service.answer("GET /computeMetadata/v1/project/project-id", 200, "sustenaut", plain)
-    service.answer(account, 200, json.dumps({"email": "soldera-ingest@sustenaut.iam.gserviceaccount.com",
+    service.answer(account, 200, json.dumps({"email": "data-ingest@sustenaut.iam.gserviceaccount.com",
                                              "aliases": ["default"], "scopes": []}), as_json)
     service.answer(account + "token", token_status,
                    json.dumps({"access_token": token, "expires_in": 3600, "token_type": "Bearer"}
@@ -482,7 +482,7 @@ def metadata_refuses(ctx, pubtest_ctx, monkeypatch, name, status):
 
 @then(parsers.parse('the "{name}" service was sent the run log rows:'))
 def sent_run_log_rows(pubtest_ctx, name, datatable):
-    schema = json.loads((REPOSITORY / "src/soldera/core/schemas/pipeline_stage_runs.json").read_text())
+    schema = json.loads((REPOSITORY / "src/ingest/core/schemas/pipeline_stage_runs.json").read_text())
     json_columns = {f["name"] for f in schema if f["type"] == "JSON"}
     sent = []
     for request in pubtest_ctx.fakes[name].requests:

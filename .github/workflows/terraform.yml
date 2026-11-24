@@ -7,7 +7,7 @@ name: terraform
 on:
   push:
     branches: [main]
-    paths: [infra/**, pubrules.json, src/soldera/core/schemas/**, .github/workflows/terraform.yml]
+    paths: [infra/**, pubrules.json, src/ingest/core/schemas/**, .github/workflows/terraform.yml]
   workflow_dispatch:
 
 permissions: { contents: read, id-token: write, pull-requests: read }

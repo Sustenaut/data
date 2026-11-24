@@ -8,7 +8,7 @@ Feature: Stage 5, merge: every parsed file into the app's DuckDB
   and technology fail the run.
 
   Background:
-    Given the program under test is "soldera"
+    Given the program under test is "data"
     And a scratch directory
     And the repository's pipeline "eex-french-power-auctions"
 
@@ -29,7 +29,7 @@ Feature: Stage 5, merge: every parsed file into the app's DuckDB
       """
       a summary
       """
-    When I run "soldera run pipeline.yaml"
+    When I run "data run pipeline.yaml"
     Then it succeeds
     And it prints "merge: auction-results-duckdb@1.1.0 succeeded: 1 items, 1 built, 0 cached, 0 failed"
     And the database of "merge" answers "SELECT auction_id, auction_number, segments, bidders_count, volume_offered_mwh, volume_allocated_mwh, round(price_weighted_avg_eur_mwh, 4) FROM auctions" with:
@@ -60,7 +60,7 @@ Feature: Stage 5, merge: every parsed file into the app's DuckDB
       | region | technology | offered | sold | price | winners |
     And the "eex" service answers "GET /fileadmin/GO/20211020_July_2021_29_Global_Results_detailedresults.csv" with a full results csv for 30 participants, where:
       | region | technology | offered | sold | price | winners |
-    When I run "soldera run pipeline.yaml"
+    When I run "data run pipeline.yaml"
     Then it succeeds
     And the notes of "merge" in the latest run are:
       | kind                     | severity | subject                                     | message                                                                                                             |
@@ -85,7 +85,7 @@ Feature: Stage 5, merge: every parsed file into the app's DuckDB
       | region | technology | offered | sold | price | winners |
     And the "eex" service answers "GET /fileadmin/GO/20211020_July_2021_27_Global_Results_detailedresults.csv" with a full results csv for 31 participants, where:
       | region | technology | offered | sold | price | winners |
-    When I run "soldera run pipeline.yaml"
+    When I run "data run pipeline.yaml"
     Then it succeeds
     And the notes of "merge" in the latest run are:
       | kind                    | severity | subject           | message                                                                                                      |
@@ -102,7 +102,7 @@ Feature: Stage 5, merge: every parsed file into the app's DuckDB
       | region | technology | offered | sold | price | winners |
     And the "eex" service answers "GET /fileadmin/GO/20210818_May_2021_27_Global_Results_detailedresults.xlsx" with a full results workbook for 28 participants, garbled like EEX's, where:
       | region | technology | offered | sold | price | winners |
-    When I run "soldera run pipeline.yaml"
+    When I run "data run pipeline.yaml"
     Then the exit code is 1
     And stderr mentions "eex-fr-go-2021-05-27 has FR-ARA wind twice: 20210818_May_2021_27_Global_Results_detailedresults.csv row 4 and 20210818_May_2021_27_Global_Results_detailedresults.xlsx row 4"
     And stderr mentions "stopped at stage 5 of 5, merge"
@@ -115,8 +115,8 @@ Feature: Stage 5, merge: every parsed file into the app's DuckDB
       """
     And the "eex" service answers "GET /fileadmin/GO/20210818_May_2021_27_Global_Results_detailedresults.csv" with a full results csv for 28 participants, where:
       | region | technology | offered | sold | price | winners |
-    And I ran "soldera run pipeline.yaml"
-    When I run "soldera run pipeline.yaml --from merge"
+    And I ran "data run pipeline.yaml"
+    When I run "data run pipeline.yaml --from merge"
     Then it succeeds
     And it prints "merge: auction-results-duckdb@1.1.0 succeeded: 1 items, 0 built, 1 cached, 0 failed"
 
@@ -128,15 +128,15 @@ Feature: Stage 5, merge: every parsed file into the app's DuckDB
       """
     And the "eex" service answers "GET /fileadmin/GO/20210818_May_2021_27_Global_Results_detailedresults.csv" with a full results csv for 28 participants, where:
       | region | technology | offered | sold | price | winners |
-    And I ran "soldera run pipeline.yaml"
-    When I run "soldera output pipeline.yaml merge"
+    And I ran "data run pipeline.yaml"
+    When I run "data output pipeline.yaml merge"
     Then it succeeds
     And it prints a line matching "*/store/05-merge/auction-results-duckdb@1.1.0/objects/*"
-    When I run "soldera output pipeline.yaml merge --copy-to power-auctions.duckdb"
+    When I run "data output pipeline.yaml merge --copy-to power-auctions.duckdb"
     Then it succeeds
     And it prints a line matching "power-auctions.duckdb: power-auctions.duckdb from run *, sha256 *"
     And the file "power-auctions.duckdb" exists
-    When I run "soldera output pipeline.yaml merge --copy-to ../power-auctions.duckdb"
+    When I run "data output pipeline.yaml merge --copy-to ../power-auctions.duckdb"
     Then the exit code is 2
     And stderr mentions "--copy-to must name a file inside the working directory"
 
@@ -148,32 +148,32 @@ Feature: Stage 5, merge: every parsed file into the app's DuckDB
       """
     And the "eex" service answers "GET /fileadmin/GO/20210818_May_2021_27_Global_Results_detailedresults.csv" with a full results csv for 28 participants, where:
       | region | technology | offered | sold | price | winners |
-    And I ran "soldera run pipeline.yaml"
+    And I ran "data run pipeline.yaml"
     And the "metadata" service is the metadata server of a job, giving the token "t0ken"
-    And the "storage" service serves the store as the bucket "soldera-store"
-    When I run "soldera output pipeline.yaml merge --store gs://soldera-store"
+    And the "storage" service serves the store as the bucket "data-store"
+    When I run "data output pipeline.yaml merge --store gs://data-store"
     Then it succeeds
-    And it prints a line matching "gs://soldera-store/05-merge/auction-results-duckdb@1.1.0/objects/*"
-    When I run "soldera output pipeline.yaml merge --store gs://soldera-store --copy-to power-auctions.duckdb"
+    And it prints a line matching "gs://data-store/05-merge/auction-results-duckdb@1.1.0/objects/*"
+    When I run "data output pipeline.yaml merge --store gs://data-store --copy-to power-auctions.duckdb"
     Then it succeeds
     And it prints a line matching "power-auctions.duckdb: power-auctions.duckdb from run *, sha256 *"
     And the file "power-auctions.duckdb" exists
-    And the "storage" service was asked "GET /storage/v1/b/soldera-store/o/05-merge%2Fauction-results-duckdb%401.1.0%2Flatest.json" with the header "Authorization" set to "Bearer t0ken"
+    And the "storage" service was asked "GET /storage/v1/b/data-store/o/05-merge%2Fauction-results-duckdb%401.1.0%2Flatest.json" with the header "Authorization" set to "Bearer t0ken"
 
   Scenario: A bucket with nothing published, or that refuses to be read, says so
     Given the "metadata" service is the metadata server of a job, giving the token "t0ken"
     And the "storage" service answers "GET /storage/v1/b/empty-store/o/05-merge%2Fauction-results-duckdb%401.1.0%2Flatest.json" with 404
     And the "storage" service answers "GET /storage/v1/b/closed-store/o/05-merge%2Fauction-results-duckdb%401.1.0%2Flatest.json" with 403 and:
       """
-      {"error": {"code": 403, "message": "soldera-app does not have storage.objects.get access"}}
+      {"error": {"code": 403, "message": "data-app does not have storage.objects.get access"}}
       """
-    When I run "soldera output pipeline.yaml merge --store gs://empty-store"
+    When I run "data output pipeline.yaml merge --store gs://empty-store"
     Then the exit code is 2
     And stderr mentions "stage merge (auction-results-duckdb@1.1.0) has published nothing in gs://empty-store"
-    When I run "soldera output pipeline.yaml merge --store gs://closed-store"
+    When I run "data output pipeline.yaml merge --store gs://closed-store"
     Then the exit code is 2
     And stderr mentions "cannot read gs://closed-store/05-merge/auction-results-duckdb@1.1.0/latest.json: 403"
-    When I run "soldera output pipeline.yaml merge --store gs://"
+    When I run "data output pipeline.yaml merge --store gs://"
     Then the exit code is 2
     And stderr mentions "'gs://' is not gs://BUCKET"
 
@@ -185,15 +185,15 @@ Feature: Stage 5, merge: every parsed file into the app's DuckDB
       """
     And the "eex" service answers "GET /fileadmin/GO/20210818_May_2021_27_Global_Results_detailedresults.csv" with a full results csv for 28 participants, where:
       | region | technology | offered | sold | price | winners |
-    And I ran "soldera run pipeline.yaml --to discover"
-    When I run "soldera output pipeline.yaml discover --copy-to page.html"
+    And I ran "data run pipeline.yaml --to discover"
+    When I run "data output pipeline.yaml discover --copy-to page.html"
     Then the exit code is 2
     And stderr mentions "stage discover published 2 outputs; name one with --name: page.html, files.json"
-    When I run "soldera output pipeline.yaml discover --name page.html --copy-to page.html"
+    When I run "data output pipeline.yaml discover --name page.html --copy-to page.html"
     Then it succeeds
     And the file "page.html" includes "Guarantees of Origin Data"
 
   Scenario: A stage that has published nothing has no output to show
-    When I run "soldera output pipeline.yaml merge"
+    When I run "data output pipeline.yaml merge"
     Then the exit code is 2
     And stderr mentions "stage merge (auction-results-duckdb@1.1.0) has published nothing in store"

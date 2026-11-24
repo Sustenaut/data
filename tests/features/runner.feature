@@ -1,5 +1,5 @@
 Feature: Running a pipeline's stages
-  `soldera run` runs a pipeline's stages in order. Each stage is the same
+  `data run` runs a pipeline's stages in order. Each stage is the same
   runner with one pinned, versioned parser, and keeps its outputs in the
   store, so a later run can start at any stage and reuse what is stored.
   These scenarios use the testing parsers: testing-files reads a directory,
@@ -8,14 +8,14 @@ Feature: Running a pipeline's stages
   them.
 
   Background:
-    Given the program under test is "soldera"
+    Given the program under test is "data"
     And a scratch directory
     And a file "src/a.txt" holding "alpha"
     And a file "src/b.txt" holding "beta"
     And a file "pipeline.yaml" holding:
       """
       pipeline: demo
-      plugins: [soldera.testing]
+      plugins: [ingest.testing]
       stages:
         - {name: fetch, parser: testing-files@1.0.0, options: {dir: src}}
         - {name: upper, parser: testing-upper@1.0.0}
@@ -23,7 +23,7 @@ Feature: Running a pipeline's stages
       """
 
   Scenario: A first run builds every stage in order
-    When I run "soldera run pipeline.yaml --run-id r1"
+    When I run "data run pipeline.yaml --run-id r1"
     Then it succeeds
     And it prints "upper: testing-upper@1.0.0 succeeded: 2 items, 2 built, 0 cached, 0 failed"
     And the published output of "join" holds:
@@ -33,23 +33,23 @@ Feature: Running a pipeline's stages
       """
 
   Scenario: A run from a later stage reuses what is stored
-    Given I ran "soldera run pipeline.yaml --run-id r1"
-    When I run "soldera run pipeline.yaml --from upper --run-id r2"
+    Given I ran "data run pipeline.yaml --run-id r1"
+    When I run "data run pipeline.yaml --from upper --run-id r2"
     Then it succeeds
     And it does not print "fetch:"
     And it prints "upper: testing-upper@1.0.0 succeeded: 2 items, 0 built, 2 cached, 0 failed"
     And it prints "join: testing-join@1.0.0 succeeded: 1 items, 0 built, 1 cached, 0 failed"
 
   Scenario: --force builds every item again
-    Given I ran "soldera run pipeline.yaml --run-id r1"
-    When I run "soldera run pipeline.yaml --from upper --force --run-id r2"
+    Given I ran "data run pipeline.yaml --run-id r1"
+    When I run "data run pipeline.yaml --from upper --force --run-id r2"
     Then it succeeds
     And it prints "upper: testing-upper@1.0.0 succeeded: 2 items, 2 built, 0 cached, 0 failed"
 
   Scenario: One failed item fails its stage loudly, after the other items have run
-    Given I ran "soldera run pipeline.yaml --run-id r1"
+    Given I ran "data run pipeline.yaml --run-id r1"
     And a file "src/c.txt" holding "FAIL here"
-    When I run "soldera run pipeline.yaml --run-id r2"
+    When I run "data run pipeline.yaml --run-id r2"
     Then the exit code is 1
     And it prints "upper: testing-upper@1.0.0 failed: 3 items, 0 built, 2 cached, 1 failed"
     And stderr mentions "upper: c.txt failed: ValueError: c.txt asks to fail"
@@ -65,23 +65,23 @@ Feature: Running a pipeline's stages
 
   Scenario Outline: A failure says where the run was started, so its logs can be found
     Given the environment sets "GITHUB_RUN_ID" to "<run id>"
-    And the environment sets "GITHUB_REPOSITORY" to "Sustenaut/soldera"
+    And the environment sets "GITHUB_REPOSITORY" to "Sustenaut/data"
     And the environment sets "CLOUD_RUN_JOB" to "<job>"
     And the environment sets "CLOUD_RUN_EXECUTION" to "<execution>"
     And a file "src/c.txt" holding "FAIL here"
-    When I run "soldera run pipeline.yaml --run-id r2"
+    When I run "data run pipeline.yaml --run-id r2"
     Then the exit code is 1
     And stderr mentions "Each error is in the run log under run r2. <where>"
 
     Examples:
       | run id | job            | execution            | where                                                                    |
-      | 123    | soldera-ingest | soldera-ingest-x7k2p | Started by https://github.com/Sustenaut/soldera/actions/runs/123.         |
-      |        | soldera-ingest | soldera-ingest-x7k2p | Cloud Run execution soldera-ingest-x7k2p of job soldera-ingest.           |
+      | 123    | data-ingest | data-ingest-x7k2p | Started by https://github.com/Sustenaut/data/actions/runs/123.         |
+      |        | data-ingest | data-ingest-x7k2p | Cloud Run execution data-ingest-x7k2p of job data-ingest.           |
 
   Scenario: A bumped parser version runs from its stage and keeps the old outputs
-    Given I ran "soldera run pipeline.yaml --run-id r1"
+    Given I ran "data run pipeline.yaml --run-id r1"
     And the file "pipeline.yaml" now pins "testing-upper@2.0.0"
-    When I run "soldera run pipeline.yaml --from auto --run-id r2"
+    When I run "data run pipeline.yaml --from auto --run-id r2"
     Then it succeeds
     And it does not print "fetch:"
     And it prints "upper: testing-upper@2.0.0 succeeded: 2 items, 2 built, 0 cached, 0 failed"
@@ -93,11 +93,11 @@ Feature: Running a pipeline's stages
     And the stored outputs of "testing-upper@1.0.0" are still there
 
   Scenario: Reverting a version pin reuses the outputs that version stored
-    Given I ran "soldera run pipeline.yaml --run-id r1"
+    Given I ran "data run pipeline.yaml --run-id r1"
     And the file "pipeline.yaml" now pins "testing-upper@2.0.0"
-    And I ran "soldera run pipeline.yaml --from auto --run-id r2"
+    And I ran "data run pipeline.yaml --from auto --run-id r2"
     And the file "pipeline.yaml" now pins "testing-upper@1.0.0"
-    When I run "soldera run pipeline.yaml --from upper --run-id r3"
+    When I run "data run pipeline.yaml --from upper --run-id r3"
     Then it succeeds
     And it prints "upper: testing-upper@1.0.0 succeeded: 2 items, 0 built, 2 cached, 0 failed"
     And the published output of "join" holds:
@@ -107,34 +107,34 @@ Feature: Running a pipeline's stages
       """
 
   Scenario: --from auto runs nothing when every stage is up to date
-    Given I ran "soldera run pipeline.yaml --run-id r1"
-    When I run "soldera run pipeline.yaml --from auto"
+    Given I ran "data run pipeline.yaml --run-id r1"
+    When I run "data run pipeline.yaml --from auto"
     Then it succeeds
     And it prints "demo: every stage is up to date; nothing to run"
 
   Scenario: A stage cannot start without the stored output of the one before it
-    When I run "soldera run pipeline.yaml --from upper"
+    When I run "data run pipeline.yaml --from upper"
     Then the exit code is 2
     And stderr mentions "no stored output of stage fetch (testing-files@1.0.0): run from fetch or earlier first"
 
   Scenario: A pin to a parser version that does not exist is refused
     Given the file "pipeline.yaml" now pins "testing-upper@9.9.9"
-    When I run "soldera run pipeline.yaml"
+    When I run "data run pipeline.yaml"
     Then the exit code is 2
     And stderr mentions "testing-upper has no version 9.9.9; it has 1.0.0, 2.0.0"
 
   Scenario: A pipeline file outside the working directory is refused
-    When I run "soldera run ../pipeline.yaml"
+    When I run "data run ../pipeline.yaml"
     Then the exit code is 2
     And stderr mentions "a pipeline file must be inside the working directory"
 
   Scenario: A pipeline file that is not YAML is refused
-    When I run "soldera run src/a.txt"
+    When I run "data run src/a.txt"
     Then the exit code is 2
     And stderr mentions "is not a .yaml file"
 
   Scenario: A missing pipeline file is refused
-    When I run "soldera run missing.yaml"
+    When I run "data run missing.yaml"
     Then the exit code is 2
     And stderr mentions "cannot read missing.yaml"
 
@@ -142,23 +142,23 @@ Feature: Running a pipeline's stages
     Given a file "vars.yaml" holding:
       """
       pipeline: demo
-      plugins: [soldera.testing]
+      plugins: [ingest.testing]
       stages:
         - {name: fetch, parser: testing-files@1.0.0, options: {dir: "${DEMO_DIR:-missing}"}}
       """
     And the environment sets "DEMO_DIR" to "src"
-    When I run "soldera run vars.yaml"
+    When I run "data run vars.yaml"
     Then it prints "fetch: testing-files@1.0.0 succeeded: 2 items, 2 built, 0 cached, 0 failed"
 
   Scenario: An option naming an unset variable with no default is refused
     Given a file "vars.yaml" holding:
       """
       pipeline: demo
-      plugins: [soldera.testing]
+      plugins: [ingest.testing]
       stages:
         - {name: fetch, parser: testing-files@1.0.0, options: {dir: "${DEMO_DIR_UNSET}"}}
       """
-    When I run "soldera run vars.yaml"
+    When I run "data run vars.yaml"
     Then the exit code is 2
     And stderr mentions "DEMO_DIR_UNSET is not set and has no default"
 
@@ -166,12 +166,12 @@ Feature: Running a pipeline's stages
     Given a file "nodir.yaml" holding:
       """
       pipeline: demo
-      plugins: [soldera.testing]
+      plugins: [ingest.testing]
       stages:
         - {name: fetch, parser: testing-files@1.0.0, options: {dir: nowhere}}
         - {name: upper, parser: testing-upper@1.0.0}
       """
-    When I run "soldera run nodir.yaml --run-id r1"
+    When I run "data run nodir.yaml --run-id r1"
     Then the exit code is 1
     And stderr mentions "ingest run r1 failed: pipeline demo stopped at stage 1 of 2, fetch (testing-files@1.0.0): it could not start: FileNotFoundError"
     And stderr mentions "Not run: upper."

@@ -24,7 +24,7 @@ jobs:
     needs: [tested]
     if: ${{ needs.tested.outputs.tested != 'true' }}
     uses: Sustenaut/pubrules/.github/workflows/job-service-checks.yml@cc8eaf673afb86eb78fa9808e5028ae7f6fa187c # v0.48.0
-    with: {"shellcheck": "bin/soldera", "runs-on": "sustenaut-ci"}
+    with: {"shellcheck": "bin/data", "runs-on": "sustenaut-ci"}
 
   terraform:
     name: ci
