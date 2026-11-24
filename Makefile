@@ -4,7 +4,7 @@
 PYTHON ?= python3
 VENV := .venv
 
-.PHONY: venv functional check lock runtime-lock sync-check clean
+.PHONY: venv functional lint fmt check lock runtime-lock sync-check clean
 
 venv: $(VENV)/.done
 
@@ -22,6 +22,17 @@ functional: venv
 	COVERAGE_RCFILE=pyproject.toml COVERAGE_FILE=coverage/.coverage $(VENV)/bin/coverage combine -q
 	COVERAGE_RCFILE=pyproject.toml COVERAGE_FILE=coverage/.coverage $(VENV)/bin/coverage xml -q
 	COVERAGE_RCFILE=pyproject.toml COVERAGE_FILE=coverage/.coverage $(VENV)/bin/coverage report
+
+# Ruff, with pubrules' Python standard (pubrules-ruff.toml, which
+# pyproject.toml extends), as CI's lint job runs it.
+lint: venv
+	$(VENV)/bin/ruff check .
+	$(VENV)/bin/ruff format --check .
+
+# Format the code, and apply Ruff's safe fixes.
+fmt: venv
+	$(VENV)/bin/ruff check --fix .
+	$(VENV)/bin/ruff format .
 
 check: sync-check functional ## Everything CI runs
 
