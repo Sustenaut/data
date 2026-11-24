@@ -1,0 +1,27 @@
+# Keeps a label deploy-to-NAME for each environment NAME in
+# infra/environments.json: on a pull request, it has deploy app deploy the
+# pull request to data-NAME.sustenaut.eu (deploy-app.yml). Labels of
+# environments since removed are left for a person to delete.
+name: labels
+
+on:
+  push:
+    branches: [main]
+    paths: [infra/environments.json, .github/workflows/labels.yml]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  labels:
+    runs-on: ubuntu-latest
+    permissions: { contents: read, issues: write }
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for name in $(jq -r "keys[]" infra/environments.json); do
+            gh label create "deploy-to-$name" --force --color 0E8A16 \
+              --description "deploy app deploys this pull request to https://data-$name.sustenaut.eu/"
+          done

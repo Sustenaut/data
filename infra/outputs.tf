@@ -33,9 +33,9 @@ output "app_image" {
   value       = local.app_image
 }
 
-output "app_service" {
-  description = "The Cloud Run service at data.sustenaut.eu, once var.serve_app is true; shared-infra maps the domain to it."
-  value       = var.serve_app ? google_cloud_run_v2_service.app[0].name : null
+output "app_services" {
+  description = "Each environment's Cloud Run service and address, once var.serve_app is true; shared-infra maps each address to its service."
+  value       = { for name, service in google_cloud_run_v2_service.app : name => { service = service.name, site = local.sites[name].site } }
 }
 
 output "app_secrets" {

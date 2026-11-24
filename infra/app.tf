@@ -17,7 +17,26 @@
 locals {
   app_image   = "${local.region}-docker.pkg.dev/${local.project}/${google_artifact_registry_repository.data.repository_id}/app"
   proxy_image = "${local.region}-docker.pkg.dev/${local.project}/${google_artifact_registry_repository.data.repository_id}/oauth2-proxy:v7.15.5"
-  site        = "data.sustenaut.eu"
+
+  # Where the app runs: live at data.sustenaut.eu, deployed from main, and one
+  # service per name in environments.json at data-NAME.sustenaut.eu, deployed
+  # from a pull request with the label deploy-to-NAME (deploy-app.yml). Each
+  # has its own address and certificate, so one stays reachable while
+  # another's domain is down. An environment with "data": "own" has its own
+  # store, run log and ingest job (environments.tf), which its app reads; one
+  # with "data": "OTHER" reads that environment's store, and only reads it.
+  # Live's data is never an environment's. Adding an environment:
+  # docs/operations.md, "Environments".
+  environments = var.environments_ready ? jsondecode(file("${path.module}/environments.json")) : {}
+  sites = merge(
+    { live = { service = "data-app", site = "data.sustenaut.eu", cookie = "_data", store = google_storage_bucket.store.name } },
+    { for name, e in local.environments : name => {
+      service = "data-app-${name}"
+      site    = "data-${name}.sustenaut.eu"
+      cookie  = "_data_${name}"
+      store   = google_storage_bucket.environment_store[e.data == "own" ? name : e.data].name
+    } },
+  )
 }
 
 # The service's account (shared-infra's).
@@ -91,9 +110,9 @@ resource "google_artifact_registry_repository_iam_member" "terraform_pulls" {
 }
 
 resource "google_cloud_run_v2_service" "app" {
-  count = var.serve_app ? 1 : 0
+  for_each = var.serve_app ? local.sites : {}
 
-  name                = "data-app"
+  name                = each.value.service
   location            = local.region
   ingress             = "INGRESS_TRAFFIC_ALL"
   iap_enabled         = false # oauth2-proxy signs people in (below)
@@ -132,13 +151,13 @@ resource "google_cloud_run_v2_service" "app" {
         "--scope=openid email profile",
         "--http-address=0.0.0.0:4180",
         "--upstream=http://127.0.0.1:8080/",
-        "--redirect-url=https://${local.site}/oauth2/callback",
+        "--redirect-url=https://${each.value.site}/oauth2/callback",
         "--reverse-proxy=true",
         "--email-domain=*",
         "--oidc-groups-claim=access",
         "--allowed-group=data",
         "--cookie-refresh=4m",
-        "--cookie-name=_data",
+        "--cookie-name=${each.value.cookie}",
         "--cookie-secure=true",
         "--cookie-samesite=lax",
         "--skip-provider-button=true",
@@ -184,7 +203,7 @@ resource "google_cloud_run_v2_service" "app" {
       image = "${local.app_image}:latest"
       env {
         name  = "DATA_STORE"
-        value = "gs://${google_storage_bucket.store.name}"
+        value = "gs://${each.value.store}"
       }
       # The page links the run that built its data; a scheduled run is a
       # Cloud Run execution of the ingest job, shown here.
@@ -221,27 +240,82 @@ resource "google_cloud_run_v2_service" "app" {
 # Anyone may reach the service: oauth2-proxy, its front container, decides
 # who gets past it.
 resource "google_cloud_run_v2_service_iam_member" "app_public" {
-  count = var.serve_app ? 1 : 0
+  for_each = google_cloud_run_v2_service.app
 
-  name     = google_cloud_run_v2_service.app[0].name
+  name     = each.value.name
   location = local.region
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
 
 # The deploy workflow updates the app container's image: only what
-# `gcloud run deploy --container app --image` needs, on this one service.
+# `gcloud run deploy --container app --image` needs, on one service. main's
+# runs deploy live as data-deploy; a pull request's deploy the other
+# environments as data-preview, which can reach no live service.
 resource "google_cloud_run_v2_service_iam_member" "deploy_app" {
-  count = var.serve_app ? 1 : 0
+  for_each = google_cloud_run_v2_service.app
 
-  name     = google_cloud_run_v2_service.app[0].name
+  name     = each.value.name
   location = local.region
   role     = "projects/${local.project}/roles/dataServiceDeployer"
-  member   = data.google_service_account.deploy.member
+  member   = each.key == "live" ? data.google_service_account.deploy.member : data.google_service_account.preview[0].member
+}
+
+moved {
+  from = google_cloud_run_v2_service.app[0]
+  to   = google_cloud_run_v2_service.app["live"]
+}
+
+moved {
+  from = google_cloud_run_v2_service_iam_member.app_public[0]
+  to   = google_cloud_run_v2_service_iam_member.app_public["live"]
+}
+
+moved {
+  from = google_cloud_run_v2_service_iam_member.deploy_app[0]
+  to   = google_cloud_run_v2_service_iam_member.deploy_app["live"]
 }
 
 resource "google_service_account_iam_member" "deploy_acts_as_app" {
   service_account_id = data.google_service_account.app.name
   role               = "roles/iam.serviceAccountUser"
   member             = data.google_service_account.deploy.member
+}
+
+# --- Pull requests' deploys ----------------------------------------------------
+
+# A pull request's runs get credentials through shared-infra's pool
+# github-preview, which admits only pull_request runs of this repository, and
+# only as data-preview. It pushes the image app-preview (so the live images'
+# cleanup count is its own) and deploys it to the environments' services.
+data "google_service_account" "preview" {
+  count = var.environments_ready ? 1 : 0
+
+  project    = local.project
+  account_id = "data-preview"
+}
+
+resource "google_service_account_iam_member" "preview_from_github" {
+  count = var.environments_ready ? 1 : 0
+
+  service_account_id = data.google_service_account.preview[0].name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/github-preview/attribute.repository/${local.repository}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "preview_push" {
+  count = var.environments_ready ? 1 : 0
+
+  location   = local.region
+  repository = google_artifact_registry_repository.data.name
+  role       = "roles/artifactregistry.writer"
+  member     = data.google_service_account.preview[0].member
+}
+
+resource "google_service_account_iam_member" "preview_acts_as_app" {
+  count = var.environments_ready ? 1 : 0
+
+  service_account_id = data.google_service_account.app.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = data.google_service_account.preview[0].member
 }

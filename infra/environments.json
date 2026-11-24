@@ -1,0 +1,4 @@
+{
+  "staging": { "data": "own" },
+  "branch": { "data": "staging" }
+}

@@ -1,7 +1,7 @@
 # Runbook
 
-What to do when an ingest run fails. Problems with the site, and the bigger
-picture, are in [Operations](operations.md).
+What to do when an ingest run fails, or when the site is down. The bigger
+picture is in [Operations](operations.md).
 
 The ingest pipeline runs as the Cloud Run job `data-ingest` in the `sustenaut`
 project: every Thursday at 07:00 Paris time from Cloud Scheduler, and by hand
@@ -80,6 +80,47 @@ Open one and use **Query** (or `SELECT * FROM` it) to run it.
 | A file has the wrong number of segments, or rows out of order | EEX changed a file's layout | Add a correction rule with an excerpt, or a new parser version, in a PR |
 | `database: … has REGION TECH twice` or `comes from N files` | Two files give the same auction | Find both files in `failed_items`, and decide which one wins in `corrections/` |
 | `403 … Permission … denied` | The job's account lacks a grant | Grants for the job's accounts are in `infra/main.tf`; grants for terraform-data are in shared-infra's `infra/terraform-ci.tf` |
+
+## The site is down
+
+data.sustenaut.eu is the Cloud Run service `data-app` behind a domain mapping
+(shared-infra's `infra/cloud-run-access.tf`). The other environments are
+services of their own, with their own addresses and certificates
+(Operations, "Environments"):
+
+| Environment | Address | Service |
+| --- | --- | --- |
+| live | <https://data.sustenaut.eu/> | `data-app` |
+| staging | <https://data-staging.sustenaut.eu/> | `data-app-staging` |
+| branch | <https://data-branch.sustenaut.eu/> | `data-app-branch` |
+
+**To let people in while live is down, send them to staging.** It signs them
+in the same way, with the same role `data`. It runs whatever was last deployed
+to it, on its own data, so first deploy main there: open a pull request from
+a branch at main (or any pull request with nothing but docs), and add the
+label `deploy-to-staging`. Its ingest job then builds the same data as live's
+from EEX's files (`data_ingest_staging.runs` shows the run). Branch reads
+staging's data, so it works too once that run has ended, if it was last
+deployed from main.
+
+To tell which half of live is broken, open the service's own address, which
+skips the domain mapping and its certificate:
+<https://data-app-948171295184.europe-north1.run.app>
+
+- **It sends you to sign in at auth.sustenaut.eu**: the service is up, and the
+  domain is the problem. Most often its certificate: a new or replaced domain
+  mapping (changing its `route_name` replaces it) has none until Google issues
+  one, usually within 15 to 60 minutes. `gcloud beta run domain-mappings
+  describe --domain data.sustenaut.eu --region europe-north1` shows
+  `CertificateProvisioned` and, while it waits, why. Change a domain mapping
+  when no one needs the site.
+- **It fails too**: the service is the problem. See its logs and revisions
+  (Operations, "Debugging production"), and deploy main again with
+  **deploy app** if the last deploy broke it.
+
+The service's own address only tells the two apart: no one can sign in there.
+Signing in comes back to the environment's own address, and auth.sustenaut.eu
+accepts only addresses on sustenaut.eu as a client's redirects.
 
 ## Re-running
 

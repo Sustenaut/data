@@ -11,9 +11,9 @@ under [Setting it up](#setting-it-up).
 
 ## What runs where
 
-The workflows deploy to these. Until data.sustenaut.eu is mapped to `data-app`,
-the soldera-* resources (the old Terraform state prefix `soldera`) still serve
-the site and run the weekly ingest, and they are deleted once it is.
+The workflows deploy to these. The soldera-* resources (the old Terraform
+state prefix `soldera`) are left over from before the rename, and are being
+deleted.
 
 | Resource | What it is for |
 | --- | --- |
@@ -38,13 +38,61 @@ the accounts and custom roles above, the Terraform account
 | --- | --- | --- |
 | **ci** (`pr.yml`, `main.yml`) | each pull request and push to main | pubrules' checks, the suite, Terraform plan, SonarQube Cloud |
 | **terraform** | pushes to main that touch `infra/`, or by hand | applies `infra/` as `terraform-data` (pubhost's workflow, secrets through pubsec). An apply that destroys or replaces a resource needs the label `terraform-destroy` on its pull request |
-| **deploy ingest pipeline** | pushes to main that touch the pipeline | builds and checks the ingest image, points the job at it, and runs the job with `--from auto`, which does nothing when every stage is current |
-| **deploy app** | pushes to main that touch the app | builds the app image, checks it serves both pages, and points the service's app container at it |
+| **deploy ingest pipeline** | pushes to main that touch the pipeline | builds and checks the ingest image, points the job at it, and runs the job with `--from auto`, which does nothing when every stage is current; then the same for each environment with its own data (below, "Environments") |
+| **deploy app** | pushes to main that touch the app, and pull requests labelled `deploy-to-NAME` | builds the app image, checks it serves both pages, and points an environment's service's app container at it: live from main, NAME from a pull request (below, "Environments") |
+| **labels** | pushes to main that touch `infra/environments.json` | makes a label `deploy-to-NAME` for each environment |
 | **run ingest pipeline** | by hand (Actions, Run workflow) | runs the job now with `from`, `to` and `force`, and fails when it does |
 | **debug markers** | pull requests, main, and each closed issue | fails while temporary code marked `DEBUG(#N)` names a closed issue |
 
 Repository variables gate them: `TERRAFORM_CI`, `DEPLOY_CI` and
-`APP_SERVICE` must be `on`.
+`APP_SERVICE` must be `on`, and `ENVIRONMENTS` too for pull requests'
+deploys.
+
+## Environments
+
+The app runs live and in each environment `infra/environments.json` names,
+each its own Cloud Run service at its own address:
+
+| Environment | Address | Service | Its data | Deployed by |
+| --- | --- | --- | --- | --- |
+| live | data.sustenaut.eu | `data-app` | `gs://sustenaut-data-store`, `data_ingest`, job `data-ingest` (weekly) | each push to main, as `data-deploy` |
+| staging | data-staging.sustenaut.eu | `data-app-staging` | its own: `gs://sustenaut-data-store-staging`, `data_ingest_staging`, job `data-ingest-staging` | a pull request with the label `deploy-to-staging` |
+| branch | data-branch.sustenaut.eu | `data-app-branch` | staging's, read only | a pull request with the label `deploy-to-branch` |
+
+Adding the label deploys the pull request's head, and each push to it
+deploys again while the label is on. Staging (`"data": "own"`) also gets the
+pull request's ingest image in its own job, which then runs with `--from
+auto`: that is where pipeline changes are tried. Its job has no schedule, and
+runs as `data-ingest-staging`, which can write only staging's store and run
+log. Branch (`"data": "staging"`) is for the front end only: it reads
+staging's store and runs nothing (`infra/environments.tf`). So that branch
+never shows a stale pipeline's data, every push to main that changes the
+pipeline deploys it to staging's job as well as live's, and runs both
+(**deploy ingest pipeline**). Staging then runs main's pipeline again until a
+pull request is next deployed there.
+
+Only someone who can label a pull request can deploy one, and pull requests
+from forks never get credentials. Pull requests deploy as `data-preview`,
+through shared-infra's pool `github-preview`, which admits only this
+repository's pull request runs. That account can deploy no live service or
+job, and pushes its images as `app-preview` and `ingest-preview`. Every
+environment signs people in at auth.sustenaut.eu with the role `data`, so
+staging is also the way in while live is down (runbook, "The site is down").
+
+To add an environment NAME:
+
+1. In shared-infra, add the account `data-ingest-NAME` to the data stack's
+   `managed_accounts`, if NAME will have `"data": "own"`.
+2. Here, add NAME to `infra/environments.json`, with `"data": "own"` for its
+   own data, or `"data": "OTHER"` to read the environment OTHER's. The apply makes its service (and its
+   store, run log and job), and the **labels** workflow its label.
+3. In shared-infra, add the site `data-NAME` to `pubrules.json`, with
+   `"kind": "cloud-run"` and `"service": "data-app-NAME"`. Its apply makes the
+   DNS records and the domain mapping, and Google issues the certificate
+   within the hour.
+4. Register its address on the team client: `register-app.py --redirect
+   https://data-NAME.sustenaut.eu/oauth2/callback --logout
+   https://data-NAME.sustenaut.eu/ --role data` (step 4 below).
 
 ## Coding conventions, and how they are enforced
 
@@ -64,7 +112,8 @@ Start with the [runbook](runbook.md). In short:
 - **A failed ingest run**: the run log's views in BigQuery say which stage
   and which items failed, and why. The job's logs are in Logs Explorer:
   `resource.type="cloud_run_job" resource.labels.job_name="data-ingest"`.
-- **The site is down or slow**: the service's logs and revisions, in the
+- **The site is down or slow**: first tell the service from the domain with
+  the service's own address (runbook, "The site is down"). Then the service's logs and revisions, in the
   Cloud Run console for `data-app`, or in Logs Explorer:
   `resource.type="cloud_run_revision" resource.labels.service_name="data-app"`.
 - **Sign-in fails**: oauth2-proxy's logs in the same service. Check the
@@ -103,6 +152,11 @@ project or a rebuild:
 7. shared-infra maps data.sustenaut.eu to the service. Its Terraform account
    must be an Owner of sustenaut.eu in Search Console (Settings, Users and
    permissions).
+8. For the environments: shared-infra makes the pool `github-preview` and the
+   account `data-preview`. A pull request here then sets
+   `environments_ready = true`, and once it has applied, set
+   `ENVIRONMENTS=on`. shared-infra maps each environment's address, and each is
+   registered on the team client (above, "Environments").
 
 On a laptop, `./with-secrets terraform -chdir=infra plan` plans with the
 secrets, as CI does.
