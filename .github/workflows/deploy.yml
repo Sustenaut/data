@@ -3,7 +3,8 @@
 # which can do that and nothing else. Google admits main's runs of the
 # repositories in shared-infra's github_repositories through the pool's github
 # provider, so this runs from main only. Nothing runs until the repository
-# variable DEPLOY_CI is on, which waits for the first terraform apply.
+# variable DEPLOY_CI is on, which waits for the first terraform apply. Then
+# it runs the job from the first stage whose parser changed, if any.
 name: deploy
 
 on:
@@ -25,11 +26,13 @@ env:
   REGION: europe-north1
   IMAGE: europe-north1-docker.pkg.dev/sustenaut/soldera/ingest
   JOB: soldera-ingest
+  PIPELINE: pipelines/eex-french-power-auctions.yaml
 
 jobs:
   deploy:
     if: vars.DEPLOY_CI == 'on' && github.ref == 'refs/heads/main'
     runs-on: sustenaut-ci
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
@@ -58,3 +61,12 @@ jobs:
           docker push "$IMAGE:$GITHUB_SHA"
           gcloud run jobs update "$JOB" --region "$REGION" --image "$IMAGE:$GITHUB_SHA" --quiet
           echo "Deployed \`$IMAGE:$GITHUB_SHA\` to the Cloud Run job \`$JOB\`." >> "$GITHUB_STEP_SUMMARY"
+
+      # --from auto runs from the first stage whose pin has no stored run (or
+      # that read older input), and does nothing at all when every stage is current.
+      - name: Rebuild the stages whose parser changed
+        run: |
+          echo "soldera run $PIPELINE --from auto --trigger deploy" >> "$GITHUB_STEP_SUMMARY"
+          gcloud run jobs execute "$JOB" --region "$REGION" --wait \
+            --args="run,$PIPELINE,--from,auto,--trigger,deploy" \
+            --update-env-vars="GITHUB_REPOSITORY=$GITHUB_REPOSITORY,GITHUB_RUN_ID=$GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT=$GITHUB_RUN_ATTEMPT,GITHUB_WORKFLOW=$GITHUB_WORKFLOW,GITHUB_SHA=$GITHUB_SHA,GITHUB_ACTOR=$GITHUB_ACTOR"
