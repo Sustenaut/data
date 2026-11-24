@@ -1,4 +1,4 @@
-# Applies infra/ from main, as terraform-soldera, the account shared-infra's
+# Applies infra/ from main, as terraform-data, the account shared-infra's
 # terraform_stacks makes for this repository, through Workload Identity Federation: no key is kept
 # anywhere. pubhost's terraform.yml does the work; nothing runs until the
 # repository variable TERRAFORM_CI is on (pubhost's README, "Terraform from CI").
@@ -19,7 +19,7 @@ jobs:
       runs-on: sustenaut-ci
       terraform-dir: infra
       workload-identity-provider: projects/948171295184/locations/global/workloadIdentityPools/github/providers/github-terraform
-      service-account: terraform-soldera@sustenaut.iam.gserviceaccount.com
+      service-account: terraform-data@sustenaut.iam.gserviceaccount.com
       # The sign-in secrets' values, from Bitwarden (infra/app.tf), with the
       # terraform environment's BWS_ACCESS_TOKEN.
       secrets: true

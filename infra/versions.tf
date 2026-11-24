@@ -12,7 +12,7 @@ terraform {
   # "One stack per repository"). The bucket is the base stack's.
   backend "gcs" {
     bucket = "sustenaut-tfstate"
-    prefix = "soldera"
+    prefix = "data"
   }
 }
 

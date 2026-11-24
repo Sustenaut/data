@@ -11,6 +11,10 @@ under [Setting it up](#setting-it-up).
 
 ## What runs where
 
+The site is moving from these soldera-* resources to data-* ones of the same
+kind, made by `infra/` under its new Terraform state prefix `data`. Until the
+move is done, the soldera-* ones below are what serves and runs.
+
 | Resource | What it is for |
 | --- | --- |
 | `soldera-app` Cloud Run service | data.sustenaut.eu: oauth2-proxy in front, signing people in at auth.sustenaut.eu and letting in those with the role `data`, and the app behind it |
@@ -26,14 +30,14 @@ under [Setting it up](#setting-it-up).
 
 shared-infra owns what this stack may not make: the Workload Identity pool,
 the accounts and custom roles above, the Terraform account
-`terraform-soldera`, and the domain mapping of data.sustenaut.eu.
+`terraform-data`, and the domain mapping of data.sustenaut.eu.
 
 ## Workflows
 
 | Workflow | When | What |
 | --- | --- | --- |
 | **ci** (`pr.yml`, `main.yml`) | each pull request and push to main | pubrules' checks, the suite, Terraform plan, SonarQube Cloud |
-| **terraform** | pushes to main that touch `infra/`, or by hand | applies `infra/` as `terraform-soldera` (pubhost's workflow, secrets through pubsec). An apply that destroys or replaces a resource needs the label `terraform-destroy` on its pull request |
+| **terraform** | pushes to main that touch `infra/`, or by hand | applies `infra/` as `terraform-data` (pubhost's workflow, secrets through pubsec). An apply that destroys or replaces a resource needs the label `terraform-destroy` on its pull request |
 | **deploy ingest pipeline** | pushes to main that touch the pipeline | builds and checks the ingest image, points the job at it, and runs the job with `--from auto`, which does nothing when every stage is current |
 | **deploy app** | pushes to main that touch the app | builds the app image, checks it serves both pages, and points the service's app container at it |
 | **run ingest pipeline** | by hand (Actions, Run workflow) | runs the job now with `from`, `to` and `force`, and fails when it does |
@@ -67,7 +71,7 @@ Start with the [runbook](runbook.md). In short:
   secrets' latest versions, and that the person has the `data` role at
   auth.sustenaut.eu.
 - **A deploy or apply is denied (403)**: grants for the job's and app's
-  accounts are in `infra/`. Grants for `terraform-soldera` are in
+  accounts are in `infra/`. Grants for `terraform-data` are in
   shared-infra's `infra/terraform-ci.tf`.
 
 ## Setting it up
@@ -77,22 +81,26 @@ project or a rebuild:
 
 1. shared-infra adds this repository to `github_repositories` (the pool's
    `github` provider then admits main's runs) and to `terraform_stacks`
-   (account `terraform-soldera`, owner id 343693649, repository id
+   (account `terraform-data`, owner id 343693649, repository id
    1467291589), and makes the accounts and custom roles above.
 2. Make the GitHub environment `terraform`, limited to main, with the secret
    `BWS_ACCESS_TOKEN` (a read-only Bitwarden machine account's token), and
    set `TERRAFORM_CI=on`.
 3. Put the secrets' values in Bitwarden under their names: the team client's
-   secret as `soldera-oidc-client-secret`, and a cookie key as
-   `soldera-cookie-secret` (`openssl rand -base64 32 | tr -d '\n' | tr --
+   secret as `data-oidc-client-secret`, and a cookie key as
+   `data-cookie-secret` (`openssl rand -base64 32 | tr -d '\n' | tr --
    '+/' '-_'`).
 4. Register the site on the team client with Sustenaut/auth's
    `register-app.py --redirect https://data.sustenaut.eu/oauth2/callback
    --logout https://data.sustenaut.eu/ --role data`.
-5. After the first apply, set `DEPLOY_CI=on`, run **deploy app** once, set
-   `serve_app = true` (`infra/variables.tf`), then `APP_SERVICE=on`, and run
-   **run ingest pipeline** once for the backfill.
-6. shared-infra maps data.sustenaut.eu to the service. Its Terraform account
+5. The first apply makes everything but the registry's grants and the app's
+   service. shared-infra then sets `data_registry_made = true`, which lets
+   this stack set IAM on its registry, and a pull request here sets
+   `registry_granted = true` (`infra/variables.tf`).
+6. Set `DEPLOY_CI=on`, run **deploy app** and **deploy ingest pipeline**
+   once (the second builds the store from nothing), set `serve_app = true`,
+   then `APP_SERVICE=on`.
+7. shared-infra maps data.sustenaut.eu to the service. Its Terraform account
    must be an Owner of sustenaut.eu in Search Console (Settings, Users and
    permissions).
 

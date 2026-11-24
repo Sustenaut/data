@@ -1,13 +1,19 @@
 variable "workload_identity_pool" {
-  description = "Id of the base stack's Workload Identity Federation pool, which GitHub's tokens come through. Its github provider admits main's runs of the repositories in shared-infra's github_repositories, which must list soldera."
+  description = "Id of the base stack's Workload Identity Federation pool, which GitHub's tokens come through. Its github provider admits main's runs of the repositories in shared-infra's github_repositories, which must list Sustenaut/data."
   type        = string
   default     = "github"
 }
 
-variable "serve_app" {
-  description = "Whether the soldera-app service exists. Set it to true once both sign-in secrets hold a value and the deploy workflow has pushed the app's image and its copy of oauth2-proxy (README, \"Deploying the app\")."
+variable "registry_granted" {
+  description = "Whether this stack may set IAM on its registry. shared-infra grants that on the registry \"data\" once this stack's first apply has made it (its data_registry_made). Until then the deploy account cannot push and Terraform cannot pull (docs/operations.md, \"Setting it up\")."
   type        = bool
-  default     = true
+  default     = false
+}
+
+variable "serve_app" {
+  description = "Whether the data-app service exists. Set it to true once both sign-in secrets hold a value and the deploy workflow has pushed the app's image and its copy of oauth2-proxy (docs/operations.md, \"Setting it up\")."
+  type        = bool
+  default     = false
 }
 
 # Set by ./pubsec run (the terraform workflow, or ./with-secrets on a laptop)

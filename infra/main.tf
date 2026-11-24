@@ -1,4 +1,4 @@
-# The ingest job of data.sustenaut.eu/power-auctions: soldera's image, the
+# The ingest job of data.sustenaut.eu/power-auctions: its image, the
 # bucket its store lives in, the BigQuery run log, the Cloud Run job, a weekly
 # schedule, and an account only this repository's workflows can act as, which
 # deploys the image and starts the job and does nothing else.
@@ -12,11 +12,11 @@ locals {
   project          = local.gcp.project
   region           = local.gcp.region
   scheduler_region = "europe-west1"
-  repository       = "Sustenaut/soldera"
-  image            = "${local.region}-docker.pkg.dev/${local.project}/${google_artifact_registry_repository.soldera.repository_id}/ingest"
+  repository       = "Sustenaut/data"
+  image            = "${local.region}-docker.pkg.dev/${local.project}/${google_artifact_registry_repository.data.repository_id}/ingest"
   note_fields = ["note_id", "run_id", "pipeline", "stage", "parser_name", "parser_version", "item_key",
   "severity", "kind", "subject", "message", "source_key", "source_sha256"]
-  run_log = "${local.project}.${google_bigquery_dataset.soldera.dataset_id}.${google_bigquery_table.pipeline_stage_runs.table_id}"
+  run_log = "${local.project}.${google_bigquery_dataset.ingest.dataset_id}.${google_bigquery_table.pipeline_stage_runs.table_id}"
 }
 
 data "google_project" "this" {
@@ -25,11 +25,11 @@ data "google_project" "this" {
 
 # --- The image ----------------------------------------------------------------
 
-resource "google_artifact_registry_repository" "soldera" {
+resource "google_artifact_registry_repository" "data" {
   location      = local.region
-  repository_id = "soldera"
+  repository_id = "data"
   format        = "DOCKER"
-  description   = "soldera's images (ingest, app, and a copy of oauth2-proxy), pushed by GitHub Actions in ${local.repository}."
+  description   = "The images of data.sustenaut.eu (ingest, app, and a copy of oauth2-proxy), pushed by GitHub Actions in ${local.repository}."
 
   cleanup_policies {
     id     = "keep-recent"
@@ -55,7 +55,7 @@ resource "google_artifact_registry_repository" "soldera" {
 # manifest is the one thing rewritten), and every request is logged to the
 # bucket below.
 resource "google_storage_bucket" "store" {
-  name                        = "${local.project}-soldera-store"
+  name                        = "${local.project}-data-store"
   location                    = local.region
   uniform_bucket_level_access = true
   public_access_prevention    = "enforced"
@@ -87,7 +87,7 @@ resource "google_storage_bucket" "store" {
 # The store's usage and storage logs, kept for a year. Only Cloud Storage
 # writes here; it logs its own requests to itself.
 resource "google_storage_bucket" "store_logs" {
-  name                        = "${local.project}-soldera-store-logs"
+  name                        = "${local.project}-data-store-logs"
   location                    = local.region
   uniform_bucket_level_access = true
   public_access_prevention    = "enforced"
@@ -117,7 +117,7 @@ resource "google_storage_bucket" "store_logs" {
   }
 
   logging {
-    log_bucket = "${local.project}-soldera-store-logs"
+    log_bucket = "${local.project}-data-store-logs"
   }
 
   soft_delete_policy {
@@ -134,17 +134,17 @@ resource "google_storage_bucket_iam_member" "store_logs_writer" {
 
 # --- The run log --------------------------------------------------------------
 
-resource "google_bigquery_dataset" "soldera" {
-  dataset_id  = "soldera"
+resource "google_bigquery_dataset" "ingest" {
+  dataset_id  = "data_ingest"
   location    = local.region
-  description = "soldera's ingest runs: one row per stage per run, and each stage run's notes."
+  description = "The ingest pipeline's runs: one row per stage per run, and each stage run's notes."
 }
 
 # Rows are only appended; a stage's newest row in a run is its state.
 resource "google_bigquery_table" "pipeline_stage_runs" {
-  dataset_id          = google_bigquery_dataset.soldera.dataset_id
+  dataset_id          = google_bigquery_dataset.ingest.dataset_id
   table_id            = "pipeline_stage_runs"
-  description         = "One row when a stage starts and one when it ends, written by soldera run."
+  description         = "One row when a stage starts and one when it ends, written by data run."
   schema              = file("${path.module}/../src/ingest/core/schemas/pipeline_stage_runs.json")
   deletion_protection = true
 
@@ -158,7 +158,7 @@ resource "google_bigquery_table" "pipeline_stage_runs" {
 # Every stage run's notes.parquet, as written, never copied: the store holds
 # no other file named *notes.parquet (outputs are stored by hash, unnamed).
 resource "google_bigquery_table" "stage_notes" {
-  dataset_id          = google_bigquery_dataset.soldera.dataset_id
+  dataset_id          = google_bigquery_dataset.ingest.dataset_id
   table_id            = "stage_notes"
   description         = "The notes each stage run wrote, read from its notes.parquet in the store."
   deletion_protection = true
@@ -180,11 +180,11 @@ resource "google_bigquery_table" "stage_notes" {
 # --- The job ------------------------------------------------------------------
 
 # The job's account: reads and writes its store bucket, appends to its run
-# log. shared-infra makes soldera's three accounts and lets this stack set
+# log. shared-infra makes this stack's accounts and lets this stack set
 # their IAM, so that this stack can never set IAM on any other account.
 data "google_service_account" "ingest" {
   project    = local.project
-  account_id = "soldera-ingest"
+  account_id = "data-ingest"
 }
 
 # Read, write and replace objects (the mount's atomic writes delete the
@@ -196,7 +196,7 @@ resource "google_storage_bucket_iam_member" "ingest_store" {
 }
 
 resource "google_bigquery_table_iam_member" "ingest_run_log" {
-  dataset_id = google_bigquery_dataset.soldera.dataset_id
+  dataset_id = google_bigquery_dataset.ingest.dataset_id
   table_id   = google_bigquery_table.pipeline_stage_runs.table_id
   role       = "roles/bigquery.dataEditor"
   member     = data.google_service_account.ingest.member
@@ -205,7 +205,7 @@ resource "google_bigquery_table_iam_member" "ingest_run_log" {
 # One task, never retried: a failed run fails loudly and waits for a person,
 # who re-runs it from the ingest workflow.
 resource "google_cloud_run_v2_job" "ingest_job" {
-  name                = "soldera-ingest"
+  name                = "data-ingest"
   location            = local.region
   deletion_protection = true
 
@@ -269,7 +269,7 @@ resource "google_cloud_run_v2_job" "ingest_job" {
 # Cloud Scheduler's account (shared-infra's): starts the job, nothing else.
 data "google_service_account" "scheduler" {
   project    = local.project
-  account_id = "soldera-scheduler"
+  account_id = "data-scheduler"
 }
 
 resource "google_cloud_run_v2_job_iam_member" "scheduler_runs_ingest" {
@@ -284,9 +284,9 @@ resource "google_cloud_run_v2_job_iam_member" "scheduler_runs_ingest" {
 # Cloud Scheduler has no europe-north1; the nearest region it runs in calls
 # the job in europe-north1 just the same.
 resource "google_cloud_scheduler_job" "weekly" {
-  name        = "soldera-ingest-weekly"
+  name        = "data-ingest-weekly"
   region      = local.scheduler_region
-  description = "Runs soldera-ingest every Thursday morning."
+  description = "Runs data-ingest every Thursday morning."
   schedule    = "0 7 * * 4"
   time_zone   = "Europe/Paris"
 
@@ -306,7 +306,7 @@ resource "google_cloud_scheduler_job" "weekly" {
 # it to the job, and starts the job.
 data "google_service_account" "deploy" {
   project    = local.project
-  account_id = "soldera-deploy"
+  account_id = "data-deploy"
 }
 
 resource "google_service_account_iam_member" "deploy_from_github" {
@@ -316,8 +316,10 @@ resource "google_service_account_iam_member" "deploy_from_github" {
 }
 
 resource "google_artifact_registry_repository_iam_member" "deploy_push" {
+  count = var.registry_granted ? 1 : 0
+
   location   = local.region
-  repository = google_artifact_registry_repository.soldera.name
+  repository = google_artifact_registry_repository.data.name
   role       = "roles/artifactregistry.writer"
   member     = data.google_service_account.deploy.member
 }
@@ -329,7 +331,7 @@ resource "google_artifact_registry_repository_iam_member" "deploy_push" {
 resource "google_cloud_run_v2_job_iam_member" "deploy" {
   name     = google_cloud_run_v2_job.ingest_job.name
   location = local.region
-  role     = "projects/${local.project}/roles/solderaJobDeployer"
+  role     = "projects/${local.project}/roles/dataJobDeployer"
   member   = data.google_service_account.deploy.member
 }
 

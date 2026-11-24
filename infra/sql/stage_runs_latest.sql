@@ -16,7 +16,7 @@ SELECT
   parser_code_hash,
   code_version,
   IF(code_version = 'dev', NULL,
-     CONCAT('https://github.com/Sustenaut/soldera/commit/', code_version)) AS commit_url,
+     CONCAT('https://github.com/Sustenaut/data/commit/', code_version)) AS commit_url,
   JSON_VALUE(trigger_context, '$.github_run_url') AS github_run_url,
   JSON_VALUE(trigger_context, '$.cloud_run_execution') AS cloud_run_execution,
   items_total,
