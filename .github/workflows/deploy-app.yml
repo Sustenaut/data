@@ -72,6 +72,7 @@ jobs:
           echo "environments=$environments" >> "$GITHUB_OUTPUT"
 
   deploy:
+    name: deploy to ${{ matrix.environment.name }}
     needs: where
     if: needs.where.outputs.environments != '[]'
     runs-on: ubuntu-latest
