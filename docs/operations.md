@@ -11,9 +11,9 @@ under [Setting it up](#setting-it-up).
 
 ## What runs where
 
-The workflows deploy to these. Until data.sustenaut.eu is mapped to `data-app`,
-the soldera-* resources (the old Terraform state prefix `soldera`) still serve
-the site and run the weekly ingest, and they are deleted once it is.
+The workflows deploy to these. The soldera-* resources (the old Terraform
+state prefix `soldera`) are left over from before the rename, and are being
+deleted.
 
 | Resource | What it is for |
 | --- | --- |
@@ -64,7 +64,8 @@ Start with the [runbook](runbook.md). In short:
 - **A failed ingest run**: the run log's views in BigQuery say which stage
   and which items failed, and why. The job's logs are in Logs Explorer:
   `resource.type="cloud_run_job" resource.labels.job_name="data-ingest"`.
-- **The site is down or slow**: the service's logs and revisions, in the
+- **The site is down or slow**: first tell the service from the domain with
+  the service's own address (runbook, "The site is down"). Then the service's logs and revisions, in the
   Cloud Run console for `data-app`, or in Logs Explorer:
   `resource.type="cloud_run_revision" resource.labels.service_name="data-app"`.
 - **Sign-in fails**: oauth2-proxy's logs in the same service. Check the

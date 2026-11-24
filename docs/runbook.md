@@ -1,7 +1,7 @@
 # Runbook
 
-What to do when an ingest run fails. Problems with the site, and the bigger
-picture, are in [Operations](operations.md).
+What to do when an ingest run fails, or when the site is down. The bigger
+picture is in [Operations](operations.md).
 
 The ingest pipeline runs as the Cloud Run job `data-ingest` in the `sustenaut`
 project: every Thursday at 07:00 Paris time from Cloud Scheduler, and by hand
@@ -80,6 +80,32 @@ Open one and use **Query** (or `SELECT * FROM` it) to run it.
 | A file has the wrong number of segments, or rows out of order | EEX changed a file's layout | Add a correction rule with an excerpt, or a new parser version, in a PR |
 | `database: … has REGION TECH twice` or `comes from N files` | Two files give the same auction | Find both files in `failed_items`, and decide which one wins in `corrections/` |
 | `403 … Permission … denied` | The job's account lacks a grant | Grants for the job's accounts are in `infra/main.tf`; grants for terraform-data are in shared-infra's `infra/terraform-ci.tf` |
+
+## The site is down
+
+data.sustenaut.eu is the Cloud Run service `data-app` behind a domain mapping
+(shared-infra's `infra/cloud-run-access.tf`). The service has its own address
+too, which skips the mapping and its certificate:
+
+<https://data-app-948171295184.europe-north1.run.app>
+
+Open it to tell which half is broken:
+
+- **It sends you to sign in at auth.sustenaut.eu**: the service is up, and the
+  domain is the problem. Most often its certificate: a new or replaced domain
+  mapping (changing its `route_name` replaces it) has none until Google issues
+  one, usually within 15 to 60 minutes. `gcloud beta run domain-mappings
+  describe --domain data.sustenaut.eu --region europe-north1` shows
+  `CertificateProvisioned` and, while it waits, why.
+- **It fails too**: the service is the problem. See its logs and revisions
+  (Operations, "Debugging production").
+
+The service's own address cannot let people in while the domain is down.
+Signing in always comes back to data.sustenaut.eu/oauth2/callback, and
+auth.sustenaut.eu accepts only addresses on sustenaut.eu as a client's
+redirects, so a run.app address cannot be added. There is no way round a
+missing certificate but to wait for it, so change a domain mapping when no one
+needs the site.
 
 ## Re-running
 
