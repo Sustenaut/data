@@ -92,7 +92,7 @@ class StageContext:
     stage that publishes the notes (a merge into the app's database) copies
     them, so they say the same everywhere."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - what a stage gives its parser; past stage, keyword-only
         self,
         storage: LocalStorage,
         options: dict[str, Any],

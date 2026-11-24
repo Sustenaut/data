@@ -77,9 +77,7 @@ class _Links(HTMLParser):
             self.link = None
         if self.capture and tag in ("h2", "p", "td"):
             text = clean("".join(self.text))
-            if self.capture == "h2":
-                self.section = text
-            elif self.capture == "teaser":
+            if self.capture == "h2" or self.capture == "teaser":
                 self.section = text
             elif self.row is not None and self.capture == "title":
                 self.row["title"] = text
@@ -127,9 +125,7 @@ def files_on(page: str, base: str) -> list[dict[str, str]]:
     files: dict[str, dict[str, str]] = {}
     for link in links.found:
         in_table = link.pop("in_table")
-        if link["url"] not in files:
-            files[link["url"]] = {**link, "_table": in_table}
-        elif in_table and not files[link["url"]]["_table"]:
+        if link["url"] not in files or (in_table and not files[link["url"]]["_table"]):
             files[link["url"]] = {**link, "_table": in_table}
     return [{k: v for k, v in f.items() if k != "_table"} for f in files.values()]
 

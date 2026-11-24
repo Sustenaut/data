@@ -121,21 +121,27 @@ def load(path: str | Path) -> Pipeline:
         raise PipelineError(f"{path}: stages must be a non-empty list")
     stages: list[Stage] = []
     for index, entry in enumerate(raw, start=1):
-        if not isinstance(entry, dict):
-            raise PipelineError(f"{path}: stage {index} must be a mapping")
-        stage_name, pin = entry.get("name"), entry.get("parser")
-        if not isinstance(stage_name, str) or not NAME.match(stage_name):
-            raise PipelineError(f"{path}: stage {index} needs a lowercase name")
-        if stage_name in [s.name for s in stages]:
-            raise PipelineError(f"{path}: stage {stage_name!r} appears twice")
-        if not isinstance(pin, str):
-            raise PipelineError(f"{path}: stage {stage_name} needs a parser pin, NAME@VERSION")
-        try:
-            parser = registry.get(pin)
-        except registry.UnknownParser as error:
-            raise PipelineError(f"{path}: stage {stage_name}: {error}") from error
-        options = entry.get("options") or {}
-        if not isinstance(options, dict):
-            raise PipelineError(f"{path}: stage {stage_name}: options must be a mapping")
-        stages.append(Stage(index, stage_name, parser, expand(options, f"{path}: stage {stage_name}")))
+        stages.append(read_stage(path, index, entry, stages))
     return Pipeline(name, tuple(stages), data)
+
+
+def read_stage(path: str | Path, index: int, entry: Any, stages: list[Stage]) -> Stage:
+    """Stage `index` of the pipeline file: a unique lowercase name, a known
+    parser pin and its options."""
+    if not isinstance(entry, dict):
+        raise PipelineError(f"{path}: stage {index} must be a mapping")
+    stage_name, pin = entry.get("name"), entry.get("parser")
+    if not isinstance(stage_name, str) or not NAME.match(stage_name):
+        raise PipelineError(f"{path}: stage {index} needs a lowercase name")
+    if stage_name in [s.name for s in stages]:
+        raise PipelineError(f"{path}: stage {stage_name!r} appears twice")
+    if not isinstance(pin, str):
+        raise PipelineError(f"{path}: stage {stage_name} needs a parser pin, NAME@VERSION")
+    try:
+        parser = registry.get(pin)
+    except registry.UnknownParser as error:
+        raise PipelineError(f"{path}: stage {stage_name}: {error}") from error
+    options = entry.get("options") or {}
+    if not isinstance(options, dict):
+        raise PipelineError(f"{path}: stage {stage_name}: options must be a mapping")
+    return Stage(index, stage_name, parser, expand(options, f"{path}: stage {stage_name}"))

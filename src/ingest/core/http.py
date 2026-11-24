@@ -38,7 +38,7 @@ def get(url: str, timeout: float = 60, headers: dict[str, str] | None = None) ->
     return send("GET", url, timeout=timeout, headers=headers)
 
 
-def send(
+def send(  # noqa: PLR0913 - one HTTP call: method, url and body, the rest keyword-only
     method: str,
     url: str,
     body: bytes | None = None,

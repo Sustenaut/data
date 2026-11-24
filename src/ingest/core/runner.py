@@ -295,7 +295,7 @@ class Runner:
         )
         return StageOutcome(stage, status, done)
 
-    def run_item(
+    def run_item(  # noqa: PLR0913 - one item of a stage, with the run it belongs to
         self, stage: Stage, parser: Any, ctx: StageContext, item: WorkItem, run_id: str, force: bool
     ) -> dict[str, Any]:
         key = cache_key(stage, item, run_id)
@@ -378,7 +378,7 @@ class Runner:
                 )
 
 
-def failure_line(
+def failure_line(  # noqa: PLR0913 - the run's facts one failure line names
     pipeline: str, run_id: str, stage: Stage, stage_count: int, outcome: StageOutcome, skipped: list[str]
 ) -> str:
     """One line that says, on its own, what failed, what did not run, what
