@@ -13,7 +13,7 @@ variable "registry_granted" {
 variable "serve_app" {
   description = "Whether the data-app service exists. Set it to true once both sign-in secrets hold a value and the deploy workflow has pushed the app's image and its copy of oauth2-proxy (docs/operations.md, \"Setting it up\")."
   type        = bool
-  default     = false
+  default     = true
 }
 
 # Set by ./pubsec run (the terraform workflow, or ./with-secrets on a laptop)
