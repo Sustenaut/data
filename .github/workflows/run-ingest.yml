@@ -1,7 +1,7 @@
-# Runs the soldera-ingest Cloud Run job now, from and to the stages asked
+# Runs the data-ingest Cloud Run job now, from and to the stages asked
 # for, and waits for it: the run fails when the job does. The job's run log
 # rows say this workflow run started it. Its output is in the job's logs, and
-# each stage's row in BigQuery (soldera.pipeline_stage_runs).
+# each stage's row in BigQuery (data_ingest.pipeline_stage_runs).
 name: run ingest pipeline
 
 on:
@@ -24,11 +24,11 @@ on:
 
 permissions: { contents: read, id-token: write }
 
-concurrency: { group: ingest-soldera, cancel-in-progress: false }
+concurrency: { group: ingest-data, cancel-in-progress: false }
 
 env:
   REGION: europe-north1
-  JOB: soldera-ingest
+  JOB: data-ingest
   PIPELINE: pipelines/eex-french-go-auctions.yaml
 
 jobs:
@@ -40,7 +40,7 @@ jobs:
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: projects/948171295184/locations/global/workloadIdentityPools/github/providers/github
-          service_account: soldera-deploy@sustenaut.iam.gserviceaccount.com
+          service_account: data-deploy@sustenaut.iam.gserviceaccount.com
 
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
@@ -56,7 +56,7 @@ jobs:
           if [ -n "$TO" ]; then args="$args,--to,$TO"; fi
           if [ "$FORCE" = true ]; then args="$args,--force"; fi
           args="$args,--trigger,$trigger"
-          echo "soldera ${args//,/ }" >> "$GITHUB_STEP_SUMMARY"
+          echo "data ${args//,/ }" >> "$GITHUB_STEP_SUMMARY"
           gcloud run jobs execute "$JOB" --region "$REGION" --wait \
             --args="$args" \
             --update-env-vars="GITHUB_REPOSITORY=$GITHUB_REPOSITORY,GITHUB_RUN_ID=$GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT=$GITHUB_RUN_ATTEMPT,GITHUB_WORKFLOW=$GITHUB_WORKFLOW,GITHUB_SHA=$GITHUB_SHA,GITHUB_ACTOR=$GITHUB_ACTOR"

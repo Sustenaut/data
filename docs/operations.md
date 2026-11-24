@@ -11,22 +11,22 @@ under [Setting it up](#setting-it-up).
 
 ## What runs where
 
-The site is moving from these soldera-* resources to data-* ones of the same
-kind, made by `infra/` under its new Terraform state prefix `data`. Until the
-move is done, the soldera-* ones below are what serves and runs.
+The workflows deploy to these. Until data.sustenaut.eu is mapped to `data-app`,
+the soldera-* resources (the old Terraform state prefix `soldera`) still serve
+the site and run the weekly ingest, and they are deleted once it is.
 
 | Resource | What it is for |
 | --- | --- |
-| `soldera-app` Cloud Run service | data.sustenaut.eu: oauth2-proxy in front, signing people in at auth.sustenaut.eu and letting in those with the role `data`, and the app behind it |
-| `soldera-ingest` Cloud Run job | the ingest pipeline: one task, never retried, an hour at most |
-| `soldera-ingest-weekly` | Cloud Scheduler (europe-west1, which has a scheduler; europe-north1 has none): Thursdays 07:00 Paris time, the morning after EEX's auction day |
-| `sustenaut-soldera-store` bucket | the store, mounted in the job at `/store` and read by the app over its API; versioned, replaced objects kept 30 days |
-| `sustenaut-soldera-store-logs` bucket | the store's access logs, kept a year |
-| `soldera` BigQuery dataset | the run log `pipeline_stage_runs`, the notes table `stage_notes`, and the views `runs`, `stage_runs_latest`, `failed_items` (`infra/views.tf`, SQL in `infra/sql/`) |
-| `soldera` Artifact Registry repository | the ingest and app images (the ten newest of each kept), and a copy of oauth2-proxy |
-| `soldera-ingest@`, `soldera-app@`, `soldera-scheduler@` | the accounts the job, the service and the scheduler run as |
-| `soldera-deploy@` | what this repository's workflows act as, through the custom roles `solderaJobDeployer` (on the job only) and `solderaServiceDeployer` (on the service only) |
-| `soldera-oidc-client-secret`, `soldera-cookie-secret` | oauth2-proxy's secrets, from the Bitwarden Secrets Manager project `Sustenaut` |
+| `data-app` Cloud Run service | data.sustenaut.eu: oauth2-proxy in front, signing people in at auth.sustenaut.eu and letting in those with the role `data`, and the app behind it |
+| `data-ingest` Cloud Run job | the ingest pipeline: one task, never retried, an hour at most |
+| `data-ingest-weekly` | Cloud Scheduler (europe-west1, which has a scheduler; europe-north1 has none): Thursdays 07:00 Paris time, the morning after EEX's auction day |
+| `sustenaut-data-store` bucket | the store, mounted in the job at `/store` and read by the app over its API; versioned, replaced objects kept 30 days |
+| `sustenaut-data-store-logs` bucket | the store's access logs, kept a year |
+| `data_ingest` BigQuery dataset | the run log `pipeline_stage_runs`, the notes table `stage_notes`, and the views `runs`, `stage_runs_latest`, `failed_items` (`infra/views.tf`, SQL in `infra/sql/`) |
+| `data` Artifact Registry repository | the ingest and app images (the ten newest of each kept), and a copy of oauth2-proxy |
+| `data-ingest@`, `data-app@`, `data-scheduler@` | the accounts the job, the service and the scheduler run as |
+| `data-deploy@` | what this repository's workflows act as, through the custom roles `dataJobDeployer` (on the job only) and `dataServiceDeployer` (on the service only) |
+| `data-oidc-client-secret`, `data-cookie-secret` | oauth2-proxy's secrets, from the Bitwarden Secrets Manager project `Sustenaut` |
 
 shared-infra owns what this stack may not make: the Workload Identity pool,
 the accounts and custom roles above, the Terraform account
@@ -63,10 +63,10 @@ Start with the [runbook](runbook.md). In short:
 
 - **A failed ingest run**: the run log's views in BigQuery say which stage
   and which items failed, and why. The job's logs are in Logs Explorer:
-  `resource.type="cloud_run_job" resource.labels.job_name="soldera-ingest"`.
+  `resource.type="cloud_run_job" resource.labels.job_name="data-ingest"`.
 - **The site is down or slow**: the service's logs and revisions, in the
-  Cloud Run console for `soldera-app`, or in Logs Explorer:
-  `resource.type="cloud_run_revision" resource.labels.service_name="soldera-app"`.
+  Cloud Run console for `data-app`, or in Logs Explorer:
+  `resource.type="cloud_run_revision" resource.labels.service_name="data-app"`.
 - **Sign-in fails**: oauth2-proxy's logs in the same service. Check the
   secrets' latest versions, and that the person has the `data` role at
   auth.sustenaut.eu.

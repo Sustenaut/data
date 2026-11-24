@@ -12,5 +12,4 @@ def setting(name: str, default: str | None = None) -> str | None:
     """The environment's DATA_<name>, or the default when it is unset or empty."""
     import os  # noqa: PLC0415
 
-    # DEBUG(#27): the deployed job and service set SOLDERA_<name> until the cloud migration.
-    return os.environ.get(f"DATA_{name}") or os.environ.get(f"SOLDERA_{name}") or default
+    return os.environ.get(f"DATA_{name}") or default
