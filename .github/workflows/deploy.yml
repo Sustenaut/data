@@ -62,11 +62,8 @@ jobs:
           gcloud run jobs update "$JOB" --region "$REGION" --image "$IMAGE:$GITHUB_SHA" --quiet
           echo "Deployed \`$IMAGE:$GITHUB_SHA\` to the Cloud Run job \`$JOB\`." >> "$GITHUB_STEP_SUMMARY"
 
-      # A parser whose version changed has published nothing under its new
-      # version, so the app reads nothing until a run builds it. --from auto
-      # runs from the first stage whose pin has no stored run (or that read
-      # older input), and nothing at all when every stage is current. The
-      # deploy fails when that run does.
+      # --from auto runs from the first stage whose pin has no stored run (or
+      # that read older input), and does nothing at all when every stage is current.
       - name: Rebuild the stages whose parser changed
         run: |
           echo "soldera run $PIPELINE --from auto --trigger deploy" >> "$GITHUB_STEP_SUMMARY"
