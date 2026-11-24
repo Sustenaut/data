@@ -1,12 +1,12 @@
 # Developing the ingest pipeline
 
-You own the data and the code that makes it: `src/ingest/`, `pipelines/` and
-`corrections/`. The pipeline fetches EEX's published files, checks and
+You own the data and the code that makes it: [`src/ingest/`](../src/ingest/), [`pipelines/`](../pipelines/) and
+[`corrections/`](../corrections/). The pipeline fetches EEX's published files, checks and
 corrects them, and builds the one DuckDB database the [app](app.md) reads.
 Data quality is yours: a number on the site that is wrong is wrong here first.
 
 A pipeline is a list of stages. Each stage is the same runner
-(`src/ingest/core/runner.py`) with one pinned, versioned parser plugged in,
+([`src/ingest/core/runner.py`](../src/ingest/core/runner.py)) with one pinned, versioned parser plugged in,
 and every stage keeps its output in the store. So a pipeline can be run again
 from any stage, and a new parser version re-runs only its own stage and the
 ones after it.
@@ -41,17 +41,17 @@ asked.
 
 ### The EEX pipeline
 
-`pipelines/eex-french-go-auctions.yaml` pins each stage's parser:
+[`pipelines/eex-french-go-auctions.yaml`](../pipelines/eex-french-go-auctions.yaml) pins each stage's parser:
 
 | Stage | Parser | What it stores |
 | --- | --- | --- |
 | discover | eex-french-auction-page | the page, and `files.json`: every file it links to, with its section, title and publishing date |
 | download | eex-french-auction-download | each file as fetched, and each file inside an archive |
 | select | eex-go-global-results-select | each monthly GO Global Results file, once, by its own name |
-| parse | eex-french-auction | `results.parquet` per file, in the canonical `auction_results` schema (`src/ingest/canonical/`) |
+| parse | eex-french-auction | `results.parquet` per file, in the canonical `auction_results` schema ([`src/ingest/canonical/`](../src/ingest/canonical/)) |
 | database | auction-results-duckdb | `go-auctions.duckdb`, the database the app reads |
 
-The database stage (`src/ingest/parsers/auction_results.py`) writes the tables
+The database stage ([`src/ingest/parsers/auction_results.py`](../src/ingest/parsers/auction_results.py)) writes the tables
 `auction_results`, `data_notes` and `build_info`, and the views `auctions`
 and `auction_technologies`. Two rows for the same auction, region and
 technology, or one auction from two files, fail the run. The database stage notes
@@ -81,13 +81,13 @@ an auction missing. The stage that finds one writes it to `notes.parquet`.
 
 | Convention | Enforced by |
 | --- | --- |
-| Every behaviour has a Gherkin scenario in `tests/features/`, run against `bin/data` as a person would run it, and every scenario has a **When** | the suite in CI (`make functional`), and pubrules' TEST-04 in `pubrules sync --check` |
+| Every behaviour has a Gherkin scenario in [`tests/features/`](../tests/features/), run against [`bin/data`](../bin/data) as a person would run it, and every scenario has a **When** | the suite in CI (`make functional`), and pubrules' TEST-04 in `pubrules sync --check` |
 | A parser subclasses `ingest.core.parser.Parser`, sets `name` and `version`, and registers with `@register`. **Bump the version whenever its output changes**: old outputs are never overwritten, and **deploy ingest pipeline** rebuilds from the first stage whose pin changed | review. `parser_code_hash` in the run log shows a parser edited without a bump |
-| Fail loudly: any failed item fails its stage, and nothing partial is published | the runner itself, and its scenarios in `runner.feature` |
-| EEX's mistakes are corrected in `corrections/eex-french-go-auctions.yaml`, never in code. Each row rule keeps the file's sha256 and an excerpt, and a rule no longer needed fails the run | `bin/data corrections check`, in the suite |
-| The generic runner (`src/ingest/core/`) knows nothing about EEX, and says "ingest run" | review |
+| Fail loudly: any failed item fails its stage, and nothing partial is published | the runner itself, and its scenarios in [`runner.feature`](../tests/features/runner.feature) |
+| EEX's mistakes are corrected in [`corrections/eex-french-go-auctions.yaml`](../corrections/eex-french-go-auctions.yaml), never in code. Each row rule keeps the file's sha256 and an excerpt, and a rule no longer needed fails the run | `bin/data corrections check`, in the suite |
+| The generic runner ([`src/ingest/core/`](../src/ingest/core/)) knows nothing about EEX, and says "ingest run" | review |
 | New code is covered by tests, with no new issues or duplication | SonarQube Cloud's quality gate, part of `ci / passed` |
-| Temporary code carries `DEBUG(#N)` with an open issue | the **debug markers** workflow (`bin/check-debug-markers`) |
+| Temporary code carries `DEBUG(#N)` with an open issue | the **debug markers** workflow ([`bin/check-debug-markers`](../bin/check-debug-markers)) |
 | Files pubrules manages are never edited by hand | `pubrules sync --check` |
 
 `ingest.testing` holds the small parsers the suite's own pipelines use. An
@@ -106,7 +106,7 @@ bin/data run pipelines/eex-french-go-auctions.yaml --store ./store --from STAGE 
 The run log in `runs.jsonl` has a row per stage with every failed item's
 error and traceback. Each stage's notes are in its `notes.parquet`.
 
-**Deployed.** The pipeline runs as the Cloud Run job `data-ingest`. The
+**Deployed.** The pipeline runs as the Cloud Run job [`data-ingest`](https://console.cloud.google.com/run/jobs/details/europe-north1/data-ingest/executions?project=sustenaut). The
 [runbook](runbook.md) walks through a failed run: the run log's views in
 BigQuery, the failed items, the code that ran, and the job's logs.
 
@@ -121,7 +121,7 @@ BigQuery, the failed items, the code that ran, and the job's logs.
 | [google-auth](https://googleapis.dev/python/google-auth/latest/) | credentials for the bucket and BigQuery, with no heavier Google client |
 | [pubtest](https://github.com/Sustenaut/pubtest) (tests) | the shared Gherkin steps and fakes the suite runs on |
 
-`requirements.lock` pins them, with hashes, for the image (`Dockerfile`).
+[`requirements.lock`](../requirements.lock) pins them, with hashes, for the image ([`Dockerfile`](../Dockerfile)).
 `make lock` writes it.
 
 Services the pipeline depends on:

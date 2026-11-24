@@ -21,7 +21,7 @@ later stages keep their last good run, and the job exits 1.
 | The store | [`gs://sustenaut-data-store`](https://console.cloud.google.com/storage/browser/sustenaut-data-store?project=sustenaut) |
 | Workflows | [run ingest pipeline](https://github.com/Sustenaut/data/actions/workflows/run-ingest.yml), [deploy ingest pipeline](https://github.com/Sustenaut/data/actions/workflows/deploy-ingest.yml), [deploy app](https://github.com/Sustenaut/data/actions/workflows/deploy-app.yml), [terraform](https://github.com/Sustenaut/data/actions/workflows/terraform.yml) |
 
-The views are made by `infra/views.tf`, and their SQL is in `infra/sql/`.
+The views are made by [`infra/views.tf`](../infra/views.tf), and their SQL is in [`infra/sql/`](../infra/sql/).
 Open one and use **Query** (or `SELECT * FROM` it) to run it.
 
 ## Debugging a failed run
@@ -57,7 +57,7 @@ Open one and use **Query** (or `SELECT * FROM` it) to run it.
 
 4. **Read the job's logs**, if the run log has no row for the run (the job
    died before it could write one). Open the execution from the Cloud Run
-   page above, or in Logs Explorer:
+   page above, or in [Logs Explorer](https://console.cloud.google.com/logs/query?project=sustenaut):
 
    ```
    resource.type="cloud_run_job" resource.labels.job_name="data-ingest"
@@ -76,15 +76,15 @@ Open one and use **Query** (or `SELECT * FROM` it) to run it.
 | Error | What it means | What to do |
 | --- | --- | --- |
 | `download: … failed after 3 tries` | EEX's site timed out or cut a transfer off three times | Re-run with **run ingest pipeline**, `from: download` |
-| A correction rule is no longer needed | EEX fixed a file that `corrections/eex-french-go-auctions.yaml` corrects | Remove the rule in a PR, then re-run from `parse` |
+| A correction rule is no longer needed | EEX fixed a file that [`corrections/eex-french-go-auctions.yaml`](../corrections/eex-french-go-auctions.yaml) corrects | Remove the rule in a PR, then re-run from `parse` |
 | A file has the wrong number of segments, or rows out of order | EEX changed a file's layout | Add a correction rule with an excerpt, or a new parser version, in a PR |
-| `database: … has REGION TECH twice` or `comes from N files` | Two files give the same auction | Find both files in `failed_items`, and decide which one wins in `corrections/` |
-| `403 … Permission … denied` | The job's account lacks a grant | Grants for the job's accounts are in `infra/main.tf`; grants for terraform-data are in shared-infra's `infra/terraform-ci.tf` |
+| `database: … has REGION TECH twice` or `comes from N files` | Two files give the same auction | Find both files in `failed_items`, and decide which one wins in [`corrections/`](../corrections/) |
+| `403 … Permission … denied` | The job's account lacks a grant | Grants for the job's accounts are in [`infra/main.tf`](../infra/main.tf); grants for terraform-data are in shared-infra's [`infra/terraform-ci.tf`](https://github.com/Sustenaut/shared-infra/blob/main/infra/terraform-ci.tf) |
 
 ## The site is down
 
 data.sustenaut.eu is the Cloud Run service `data-app` behind a domain mapping
-(shared-infra's `infra/cloud-run-access.tf`). The other environments are
+(shared-infra's [`infra/cloud-run-access.tf`](https://github.com/Sustenaut/shared-infra/blob/main/infra/cloud-run-access.tf)). The other environments are
 services of their own, with their own addresses and certificates
 (Operations, "Environments"):
 
