@@ -1,0 +1,24 @@
+# Fails while temporary code marked DEBUG(#N) has no issue or names a closed
+# one (bin/check-debug-markers). It runs on closing an issue too, so the code
+# that issue kept is flagged as soon as it closes.
+name: debug markers
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  issues:
+    types: [closed]
+
+permissions: { contents: read, issues: read }
+
+jobs:
+  markers:
+    runs-on: sustenaut-ci
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Every DEBUG marker names an open issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bin/check-debug-markers
