@@ -10,9 +10,9 @@
 #            deploy-to-NAME, and when the label is added, as data-preview
 #            through the pool github-preview. Pull requests from forks get
 #            no credentials, so they never deploy. An environment with
-#            "ingest": true also gets the pull request's ingest image in its
-#            own job, data-ingest-NAME, which then runs (infra/environments.tf);
-#            the others only read live's data.
+#            "data": "own" (staging) also gets the pull request's ingest image
+#            in its own job, data-ingest-NAME, which then runs
+#            (infra/environments.tf); the others (branch) read its data.
 #
 # It waits for the repository variable DEPLOY_CI, like deploy-ingest.yml, and
 # pull requests' deploys also for ENVIRONMENTS, set to on once infra/'s
@@ -79,10 +79,11 @@ jobs:
             picked=$(jq -c '[.[] | select(startswith("deploy-to-")) | ltrimstr("deploy-to-")]' <<<"$LABELS")
           fi
           # live comes from main alone, never from a label. Each environment
-          # comes with whether it has its own ingest job (environments.json).
+          # comes with whether it has its own data and ingest job
+          # (environments.json, "data": "own").
           if [[ "$EVENT" == pull_request ]]; then
             environments=$(jq -c --slurpfile known infra/environments.json \
-              '[.[] | select(. != "live") | . as $n | $known[0][$n] // empty | {name: $n, ingest: .ingest}]' <<<"$picked")
+              '[.[] | select(. != "live") | . as $n | $known[0][$n] // empty | {name: $n, ingest: (.data == "own")}]' <<<"$picked")
           else
             environments='[{"name":"live","ingest":false}]'
           fi
@@ -166,7 +167,7 @@ jobs:
           gcloud run deploy "$SERVICE" --region "$REGION" --quiet --container app --image "$IMAGE:$SHA"
           echo "Deployed \`$IMAGE:$SHA\` to \`$SERVICE\`, https://$SITE/." >> "$GITHUB_STEP_SUMMARY"
 
-      # An environment with its own data (environments.json, "ingest": true)
+      # An environment with its own data (environments.json, "data": "own")
       # also gets the pull request's ingest image in its job, run as
       # deploy-ingest.yml runs live's: from the first stage whose parser
       # changed, which is every stage the first time. Its app shows the new

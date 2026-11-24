@@ -1,4 +1,4 @@
 {
-  "staging": { "ingest": true },
-  "branch": { "ingest": false }
+  "staging": { "data": "own" },
+  "branch": { "data": "staging" }
 }

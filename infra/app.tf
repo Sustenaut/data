@@ -22,9 +22,10 @@ locals {
   # service per name in environments.json at data-NAME.sustenaut.eu, deployed
   # from a pull request with the label deploy-to-NAME (deploy-app.yml). Each
   # has its own address and certificate, so one stays reachable while
-  # another's domain is down. An environment with "ingest": true has its own
-  # store, run log and ingest job (environments.tf), which its app reads; the
-  # others read live's store, and only read it. Adding an environment:
+  # another's domain is down. An environment with "data": "own" has its own
+  # store, run log and ingest job (environments.tf), which its app reads; one
+  # with "data": "OTHER" reads that environment's store, and only reads it.
+  # Live's data is never an environment's. Adding an environment:
   # docs/operations.md, "Environments".
   environments = var.environments_ready ? jsondecode(file("${path.module}/environments.json")) : {}
   sites = merge(
@@ -33,7 +34,7 @@ locals {
       service = "data-app-${name}"
       site    = "data-${name}.sustenaut.eu"
       cookie  = "_data_${name}"
-      store   = e.ingest ? google_storage_bucket.environment_store[name].name : google_storage_bucket.store.name
+      store   = google_storage_bucket.environment_store[e.data == "own" ? name : e.data].name
     } },
   )
 }

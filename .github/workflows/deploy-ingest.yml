@@ -4,13 +4,16 @@
 # repositories in shared-infra's github_repositories through the pool's github
 # provider, so this runs from main only. Nothing runs until the repository
 # variable DEPLOY_CI is on, which waits for the first terraform apply. Then
-# it runs the job from the first stage whose parser changed, if any.
+# it runs the job from the first stage whose parser changed, if any. Once the
+# environments are on (ENVIRONMENTS), it does the same for each environment
+# with its own data (infra/environments.json, "data": "own"), so staging, and
+# branch, which reads staging's data, are back on main's pipeline.
 name: deploy ingest pipeline
 
 on:
   push:
     branches: [main]
-    paths: [src/ingest/**, pipelines/**, corrections/**, Dockerfile, .dockerignore, requirements.lock, .github/workflows/deploy-ingest.yml]
+    paths: [src/ingest/**, pipelines/**, corrections/**, Dockerfile, .dockerignore, requirements.lock, infra/environments.json, .github/workflows/deploy-ingest.yml]
   workflow_dispatch:
     inputs:
       no-cache:
@@ -32,7 +35,7 @@ jobs:
   deploy:
     if: vars.DEPLOY_CI == 'on' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 80
+    timeout-minutes: 150 # live's run, then each environment's
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
@@ -70,3 +73,16 @@ jobs:
           gcloud run jobs execute "$JOB" --region "$REGION" --wait \
             --args="run,$PIPELINE,--from,auto,--trigger,deploy" \
             --update-env-vars="GITHUB_REPOSITORY=$GITHUB_REPOSITORY,GITHUB_RUN_ID=$GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT=$GITHUB_RUN_ATTEMPT,GITHUB_WORKFLOW=$GITHUB_WORKFLOW,GITHUB_SHA=$GITHUB_SHA,GITHUB_ACTOR=$GITHUB_ACTOR"
+
+      # The environments with their own data get main's pipeline too,
+      # replacing whatever a pull request last deployed there.
+      - name: The same for the environments with their own data
+        if: vars.ENVIRONMENTS == 'on'
+        run: |
+          for name in $(jq -r 'to_entries[] | select(.value.data == "own") | .key' infra/environments.json); do
+            gcloud run jobs update "$JOB-$name" --region "$REGION" --image "$IMAGE:$GITHUB_SHA" --quiet
+            echo "Deployed \`$IMAGE:$GITHUB_SHA\` to \`$JOB-$name\`, then ran it --from auto." >> "$GITHUB_STEP_SUMMARY"
+            gcloud run jobs execute "$JOB-$name" --region "$REGION" --wait \
+              --args="run,$PIPELINE,--from,auto,--trigger,deploy" \
+              --update-env-vars="GITHUB_REPOSITORY=$GITHUB_REPOSITORY,GITHUB_RUN_ID=$GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT=$GITHUB_RUN_ATTEMPT,GITHUB_WORKFLOW=$GITHUB_WORKFLOW,GITHUB_SHA=$GITHUB_SHA,GITHUB_ACTOR=$GITHUB_ACTOR"
+          done

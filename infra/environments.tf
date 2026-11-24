@@ -1,8 +1,11 @@
-# What an environment with "ingest": true in environments.json has of its
+# What an environment with "data": "own" in environments.json has of its
 # own (app.tf has its service): a store, a run log with the runbook's views,
 # and an ingest job. A pull request deployed to it (deploy-app.yml) also
 # deploys its ingest image to that job and runs it with --from auto, so
-# pipeline changes are tried on its own data before they reach live's.
+# pipeline changes are tried on its own data before they reach live's. Each
+# push to main deploys main's ingest image to it too, as it does to live's
+# (deploy-ingest.yml), so the environments that read its data (branch reads
+# staging's) see main's pipeline unless a pull request is being tried there.
 #
 # The job runs a pull request's code, so it runs as its own account,
 # data-ingest-NAME (shared-infra's), which may write only this store and this
@@ -11,7 +14,7 @@
 # environment is removed. It has no schedule; only deploys run it.
 
 locals {
-  ingest_environments = { for name, e in local.environments : name => e if e.ingest }
+  ingest_environments = { for name, e in local.environments : name => e if e.data == "own" }
 }
 
 data "google_service_account" "environment_ingest" {
@@ -243,4 +246,23 @@ resource "google_service_account_iam_member" "preview_acts_as_environment_ingest
   service_account_id = data.google_service_account.environment_ingest[each.key].name
   role               = "roles/iam.serviceAccountUser"
   member             = data.google_service_account.preview[0].member
+}
+
+# main's deploys (deploy-ingest.yml) bring the job back to main's pipeline, as
+# data-deploy, just as they deploy live's.
+resource "google_cloud_run_v2_job_iam_member" "deploy_deploys_environment_ingest" {
+  for_each = local.ingest_environments
+
+  name     = google_cloud_run_v2_job.environment_ingest[each.key].name
+  location = local.region
+  role     = "projects/${local.project}/roles/dataJobDeployer"
+  member   = data.google_service_account.deploy.member
+}
+
+resource "google_service_account_iam_member" "deploy_acts_as_environment_ingest" {
+  for_each = local.ingest_environments
+
+  service_account_id = data.google_service_account.environment_ingest[each.key].name
+  role               = "roles/iam.serviceAccountUser"
+  member             = data.google_service_account.deploy.member
 }
