@@ -49,7 +49,8 @@ class RunLogError(RuntimeError):
 
 
 def schema() -> list[dict[str, Any]]:
-    return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    fields: list[dict[str, Any]] = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    return fields
 
 
 class BigQueryRunLog:
@@ -70,9 +71,9 @@ class BigQueryRunLog:
             f"/tables/{match['table']}/insertAll"
         )
         self.columns = {f["name"]: f for f in schema()}
-        self._credentials = None
+        self._credentials: Any = None  # google-auth's Credentials, once signed in
 
-    def credentials(self):  # noqa: ANN201 - google-auth's own type
+    def credentials(self) -> Any:  # google-auth's Credentials, which it does not type
         if self._credentials is None:
             import google.auth  # noqa: PLC0415 - only a BigQuery run log needs it
             from google.auth import exceptions  # noqa: PLC0415

@@ -37,6 +37,21 @@ extend = "pubrules-ruff.toml"
 # pytest-bdd steps take their fixtures as arguments, by name.
 "tests/steps/*" = ["PLR0913"]
 
+# mypy, which `make lint` runs. It checks the ingest runner's core first;
+# the parsers and the app follow once it passes there.
+[tool.mypy]
+files = ["src/ingest/core"]
+mypy_path = "src"
+python_version = "3.12"
+strict = true
+
+# google-auth's functions carry no annotations, and pyarrow ships no types.
+untyped_calls_exclude = ["google"]
+
+[[tool.mypy.overrides]]
+module = ["pyarrow", "pyarrow.*"]
+ignore_missing_imports = true
+
 [tool.coverage.run]
 source = ["ingest", "app"]
 patch = ["subprocess"]

@@ -12,5 +12,9 @@ google-auth==2.40.3
 # The app's (pyproject.toml's app extra), for its scenarios.
 streamlit==1.67.0
 plotly==7.1.0
+# The type checker `make lint` runs on src/ingest/core (pyproject.toml's
+# [tool.mypy]), with PyYAML's stubs.
+mypy==2.4.1
+types-PyYAML==6.0.12.20261103
 # The suite's coverage, for SonarQube Cloud.
 coverage==7.17.4
