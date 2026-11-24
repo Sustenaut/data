@@ -1,10 +1,10 @@
 # The app at data.sustenaut.eu: the landing page at / and the power-auctions
 # app at /power-auctions (src/app), one Streamlit server in the Cloud
-# Run service soldera-app, with oauth2-proxy in front of it in the same
+# Run service data-app, with oauth2-proxy in front of it in the same
 # service. The proxy signs people in with the team realm at auth.sustenaut.eu
 # and lets in only those with the role data, as business-plan's planning app
 # does with plan. The app reads the newest database the merge stage published
-# in the store bucket, as soldera-app, which may read that bucket and the two
+# in the store bucket, as data-app, which may read that bucket and the two
 # sign-in secrets and nothing else. The deploy workflow builds the app's
 # image and points the service's app container at it; shared-infra maps
 # data.sustenaut.eu to the service.
@@ -12,18 +12,18 @@
 # The service needs both secrets to hold a value (from Bitwarden, below), and
 # both images to be in the registry, before it can start. So it waits for var.serve_app, which a
 # pull request sets once a person has added the values and the deploy
-# workflow has pushed the images (README, "Deploying the app").
+# workflow has pushed the images (docs/operations.md, "Setting it up").
 
 locals {
-  app_image   = "${local.region}-docker.pkg.dev/${local.project}/${google_artifact_registry_repository.soldera.repository_id}/app"
-  proxy_image = "${local.region}-docker.pkg.dev/${local.project}/${google_artifact_registry_repository.soldera.repository_id}/oauth2-proxy:v7.15.5"
+  app_image   = "${local.region}-docker.pkg.dev/${local.project}/${google_artifact_registry_repository.data.repository_id}/app"
+  proxy_image = "${local.region}-docker.pkg.dev/${local.project}/${google_artifact_registry_repository.data.repository_id}/oauth2-proxy:v7.15.5"
   site        = "data.sustenaut.eu"
 }
 
 # The service's account (shared-infra's).
 data "google_service_account" "app" {
   project    = local.project
-  account_id = "soldera-app"
+  account_id = "data-app"
 }
 
 resource "google_storage_bucket_iam_member" "app_reads_store" {
@@ -39,8 +39,8 @@ resource "google_storage_bucket_iam_member" "app_reads_store" {
 # write-only argument, so no value is in git, the plan or the state.
 resource "google_secret_manager_secret" "app_sign_in" {
   for_each = {
-    "soldera-oidc-client-secret" = "Secret of sustenaut.eu's team client, which soldera-app's oauth2-proxy signs in with."
-    "soldera-cookie-secret"      = "Key soldera-app's oauth2-proxy encrypts its session cookies with."
+    "data-oidc-client-secret" = "Secret of sustenaut.eu's team client, which data-app's oauth2-proxy signs in with."
+    "data-cookie-secret"      = "Key data-app's oauth2-proxy encrypts its session cookies with."
   }
 
   secret_id   = each.key
@@ -82,8 +82,10 @@ resource "google_secret_manager_secret_iam_member" "app_reads_sign_in" {
 data "google_client_openid_userinfo" "terraform" {}
 
 resource "google_artifact_registry_repository_iam_member" "terraform_pulls" {
+  count = var.registry_granted ? 1 : 0
+
   location   = local.region
-  repository = google_artifact_registry_repository.soldera.name
+  repository = google_artifact_registry_repository.data.name
   role       = "roles/artifactregistry.reader"
   member     = "serviceAccount:${data.google_client_openid_userinfo.terraform.email}"
 }
@@ -91,7 +93,7 @@ resource "google_artifact_registry_repository_iam_member" "terraform_pulls" {
 resource "google_cloud_run_v2_service" "app" {
   count = var.serve_app ? 1 : 0
 
-  name                = "soldera-app"
+  name                = "data-app"
   location            = local.region
   ingress             = "INGRESS_TRAFFIC_ALL"
   iap_enabled         = false # oauth2-proxy signs people in (below)
@@ -115,7 +117,7 @@ resource "google_cloud_run_v2_service" "app" {
     # sustenaut.eu's team client, letting in only people with the role data.
     # The same settings as the planning app's (business-plan infra/plan.tf),
     # but its own cookie. The deploy workflow keeps a copy of this exact
-    # release in soldera's registry, as Cloud Run does not pull from quay.io.
+    # release in this stack's registry, as Cloud Run does not pull from quay.io.
     containers {
       name       = "oauth2-proxy"
       image      = local.proxy_image
@@ -150,7 +152,7 @@ resource "google_cloud_run_v2_service" "app" {
         name = "OAUTH2_PROXY_CLIENT_SECRET"
         value_source {
           secret_key_ref {
-            secret  = google_secret_manager_secret.app_sign_in["soldera-oidc-client-secret"].secret_id
+            secret  = google_secret_manager_secret.app_sign_in["data-oidc-client-secret"].secret_id
             version = "latest"
           }
         }
@@ -159,7 +161,7 @@ resource "google_cloud_run_v2_service" "app" {
         name = "OAUTH2_PROXY_COOKIE_SECRET"
         value_source {
           secret_key_ref {
-            secret  = google_secret_manager_secret.app_sign_in["soldera-cookie-secret"].secret_id
+            secret  = google_secret_manager_secret.app_sign_in["data-cookie-secret"].secret_id
             version = "latest"
           }
         }
@@ -234,7 +236,7 @@ resource "google_cloud_run_v2_service_iam_member" "deploy_app" {
 
   name     = google_cloud_run_v2_service.app[0].name
   location = local.region
-  role     = "projects/${local.project}/roles/solderaServiceDeployer"
+  role     = "projects/${local.project}/roles/dataServiceDeployer"
   member   = data.google_service_account.deploy.member
 }
 

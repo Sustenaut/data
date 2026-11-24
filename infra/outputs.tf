@@ -14,12 +14,12 @@ output "store_bucket" {
 }
 
 output "run_log" {
-  description = "The run log, as soldera's --run-log takes it."
+  description = "The run log, as data run's --run-log takes it."
   value       = "bigquery:${local.run_log}"
 }
 
 output "deploy_service_account" {
-  description = "The account GitHub Actions in Sustenaut/soldera deploy and re-run as, named in deploy-ingest.yml, deploy-app.yml and run-ingest.yml."
+  description = "The account GitHub Actions in Sustenaut/data deploy and re-run as, named in deploy-ingest.yml, deploy-app.yml and run-ingest.yml."
   value       = data.google_service_account.deploy.email
 }
 

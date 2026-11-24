@@ -2,12 +2,12 @@
 # (docs/runbook.md) and can be queried like a table. The SQL is in sql/.
 
 locals {
-  run_log_table = "${local.project}.${google_bigquery_dataset.soldera.dataset_id}.${google_bigquery_table.pipeline_stage_runs.table_id}"
-  views_dataset = "${local.project}.${google_bigquery_dataset.soldera.dataset_id}"
+  run_log_table = "${local.project}.${google_bigquery_dataset.ingest.dataset_id}.${google_bigquery_table.pipeline_stage_runs.table_id}"
+  views_dataset = "${local.project}.${google_bigquery_dataset.ingest.dataset_id}"
 }
 
 resource "google_bigquery_table" "stage_runs_latest" {
-  dataset_id          = google_bigquery_dataset.soldera.dataset_id
+  dataset_id          = google_bigquery_dataset.ingest.dataset_id
   table_id            = "stage_runs_latest"
   description         = "Each stage of each run as it ended, with its commit, parser and trigger. docs/runbook.md."
   deletion_protection = false
@@ -19,7 +19,7 @@ resource "google_bigquery_table" "stage_runs_latest" {
 }
 
 resource "google_bigquery_table" "runs" {
-  dataset_id          = google_bigquery_dataset.soldera.dataset_id
+  dataset_id          = google_bigquery_dataset.ingest.dataset_id
   table_id            = "runs"
   description         = "One row per ingest run: how far it got and how it ended. docs/runbook.md."
   deletion_protection = false
@@ -31,7 +31,7 @@ resource "google_bigquery_table" "runs" {
 }
 
 resource "google_bigquery_table" "failed_items" {
-  dataset_id          = google_bigquery_dataset.soldera.dataset_id
+  dataset_id          = google_bigquery_dataset.ingest.dataset_id
   table_id            = "failed_items"
   description         = "What failed in each failed stage run, one row per failed item. docs/runbook.md."
   deletion_protection = false
