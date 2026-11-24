@@ -1,1 +1,4 @@
-["staging", "branch"]
+{
+  "staging": { "ingest": true },
+  "branch": { "ingest": false }
+}

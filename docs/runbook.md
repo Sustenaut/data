@@ -95,10 +95,12 @@ services of their own, with their own addresses and certificates
 | branch | <https://data-branch.sustenaut.eu/> | `data-app-branch` |
 
 **To let people in while live is down, send them to staging.** It signs them
-in the same way, with the same role `data`, and reads the same data. It runs
-whatever was last deployed to it, so first deploy main there: open a pull
-request from a branch at main (or any pull request with nothing but docs),
-and add the label `deploy-to-staging`.
+in the same way, with the same role `data`. It runs whatever was last deployed
+to it, on its own data, so first deploy main there: open a pull request from
+a branch at main (or any pull request with nothing but docs), and add the
+label `deploy-to-staging`. Its ingest job then builds the same data as live's
+from EEX's files (`data_ingest_staging.runs` shows the run). Branch reads
+live's own data, so it works too, if it was last deployed from main.
 
 To tell which half of live is broken, open the service's own address, which
 skips the domain mapping and its certificate:

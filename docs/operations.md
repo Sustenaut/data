@@ -53,31 +53,40 @@ deploys.
 The app runs live and in each environment `infra/environments.json` names,
 each its own Cloud Run service at its own address:
 
-| Environment | Address | Service | Deployed by |
-| --- | --- | --- | --- |
-| live | data.sustenaut.eu | `data-app` | each push to main, as `data-deploy` |
-| staging | data-staging.sustenaut.eu | `data-app-staging` | a pull request with the label `deploy-to-staging` |
-| branch | data-branch.sustenaut.eu | `data-app-branch` | a pull request with the label `deploy-to-branch` |
+| Environment | Address | Service | Its data | Deployed by |
+| --- | --- | --- | --- | --- |
+| live | data.sustenaut.eu | `data-app` | `gs://sustenaut-data-store`, `data_ingest`, job `data-ingest` (weekly) | each push to main, as `data-deploy` |
+| staging | data-staging.sustenaut.eu | `data-app-staging` | its own: `gs://sustenaut-data-store-staging`, `data_ingest_staging`, job `data-ingest-staging` | a pull request with the label `deploy-to-staging` |
+| branch | data-branch.sustenaut.eu | `data-app-branch` | live's, read only | a pull request with the label `deploy-to-branch` |
 
 Adding the label deploys the pull request's head, and each push to it
-deploys again while the label is on. Only someone who can label a pull request
-can deploy one, and pull requests from forks never get credentials. Pull
-requests deploy as `data-preview`, through shared-infra's pool
-`github-preview`, which admits only this repository's pull request runs. That
-account can deploy no live service, and pushes its images as `app-preview`.
-Every environment signs people in at auth.sustenaut.eu with the role `data`,
-and reads the same store, so staging is also the way in while live is down
-(runbook, "The site is down").
+deploys again while the label is on. Staging (`"ingest": true`) also gets the
+pull request's ingest image in its own job, which then runs with `--from
+auto`: that is where pipeline changes are tried. Its job has no schedule, and
+runs as `data-ingest-staging`, which can write only staging's store and run
+log. Branch is for the front end only: it reads live's store and runs
+nothing (`infra/environments.tf`).
+
+Only someone who can label a pull request can deploy one, and pull requests
+from forks never get credentials. Pull requests deploy as `data-preview`,
+through shared-infra's pool `github-preview`, which admits only this
+repository's pull request runs. That account can deploy no live service or
+job, and pushes its images as `app-preview` and `ingest-preview`. Every
+environment signs people in at auth.sustenaut.eu with the role `data`, so
+staging is also the way in while live is down (runbook, "The site is down").
 
 To add an environment NAME:
 
-1. Here, add NAME to `infra/environments.json`. The apply makes its service
-   and the **labels** workflow its label.
-2. In shared-infra, add the site `data-NAME` to `pubrules.json`, with
+1. In shared-infra, add the account `data-ingest-NAME` to the data stack's
+   `managed_accounts`, if NAME will have `"ingest": true`.
+2. Here, add NAME to `infra/environments.json`, with `"ingest": true` for its
+   own data or `false` to read live's. The apply makes its service (and its
+   store, run log and job), and the **labels** workflow its label.
+3. In shared-infra, add the site `data-NAME` to `pubrules.json`, with
    `"kind": "cloud-run"` and `"service": "data-app-NAME"`. Its apply makes the
    DNS records and the domain mapping, and Google issues the certificate
    within the hour.
-3. Register its address on the team client: `register-app.py --redirect
+4. Register its address on the team client: `register-app.py --redirect
    https://data-NAME.sustenaut.eu/oauth2/callback --logout
    https://data-NAME.sustenaut.eu/ --role data` (step 4 below).
 

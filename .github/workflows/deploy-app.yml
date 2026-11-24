@@ -9,7 +9,10 @@
 #            infra/environments.json: each push to a pull request labelled
 #            deploy-to-NAME, and when the label is added, as data-preview
 #            through the pool github-preview. Pull requests from forks get
-#            no credentials, so they never deploy.
+#            no credentials, so they never deploy. An environment with
+#            "ingest": true also gets the pull request's ingest image in its
+#            own job, data-ingest-NAME, which then runs (infra/environments.tf);
+#            the others only read live's data.
 #
 # It waits for the repository variable DEPLOY_CI, like deploy-ingest.yml, and
 # pull requests' deploys also for ENVIRONMENTS, set to on once infra/'s
@@ -69,18 +72,19 @@ jobs:
           LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
         run: |
           if [[ "$EVENT" != pull_request ]]; then
-            picked='["live"]'
+            picked='[]'
           elif [[ "$ACTION" == labeled ]]; then
             picked=$(jq -c --arg added "$ADDED" '[$added | select(startswith("deploy-to-")) | ltrimstr("deploy-to-")]' <<<'null')
           else
             picked=$(jq -c '[.[] | select(startswith("deploy-to-")) | ltrimstr("deploy-to-")]' <<<"$LABELS")
           fi
-          # live comes from main alone, never from a label.
-          known=$(jq -c . infra/environments.json)
+          # live comes from main alone, never from a label. Each environment
+          # comes with whether it has its own ingest job (environments.json).
           if [[ "$EVENT" == pull_request ]]; then
-            environments=$(jq -c --argjson known "$known" '[.[] | select(. as $n | $n != "live" and ($known | index($n)))]' <<<"$picked")
+            environments=$(jq -c --slurpfile known infra/environments.json \
+              '[.[] | select(. != "live") | . as $n | $known[0][$n] // empty | {name: $n, ingest: .ingest}]' <<<"$picked")
           else
-            environments=$picked
+            environments='[{"name":"live","ingest":false}]'
           fi
           echo "Deploying to: $environments"
           echo "environments=$environments" >> "$GITHUB_OUTPUT"
@@ -90,19 +94,23 @@ jobs:
     if: needs.where.outputs.environments != '[]'
     runs-on: ubuntu-latest
     permissions: { contents: read, id-token: write }
+    timeout-minutes: 80 # an environment's first ingest run builds every stage
     strategy:
       fail-fast: false
       matrix:
         environment: ${{ fromJSON(needs.where.outputs.environments) }}
     # One deploy at a time per environment: two pull requests labelled for
     # the same one queue, and the later push wins.
-    concurrency: { group: "deploy-data-app-${{ matrix.environment }}", cancel-in-progress: false }
+    concurrency: { group: "deploy-data-app-${{ matrix.environment.name }}", cancel-in-progress: false }
     env:
-      LIVE: ${{ matrix.environment == 'live' }}
+      LIVE: ${{ matrix.environment.name == 'live' }}
       SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      IMAGE: europe-north1-docker.pkg.dev/sustenaut/data/${{ matrix.environment == 'live' && 'app' || 'app-preview' }}
-      SERVICE: ${{ matrix.environment == 'live' && 'data-app' || format('data-app-{0}', matrix.environment) }}
-      SITE: ${{ matrix.environment == 'live' && 'data.sustenaut.eu' || format('data-{0}.sustenaut.eu', matrix.environment) }}
+      IMAGE: europe-north1-docker.pkg.dev/sustenaut/data/${{ matrix.environment.name == 'live' && 'app' || 'app-preview' }}
+      SERVICE: ${{ matrix.environment.name == 'live' && 'data-app' || format('data-app-{0}', matrix.environment.name) }}
+      JOB: data-ingest-${{ matrix.environment.name }}
+      INGEST_IMAGE: europe-north1-docker.pkg.dev/sustenaut/data/ingest-preview
+      PIPELINE: pipelines/eex-french-go-auctions.yaml
+      SITE: ${{ matrix.environment.name == 'live' && 'data.sustenaut.eu' || format('data-{0}.sustenaut.eu', matrix.environment.name) }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -157,3 +165,27 @@ jobs:
         run: |
           gcloud run deploy "$SERVICE" --region "$REGION" --quiet --container app --image "$IMAGE:$SHA"
           echo "Deployed \`$IMAGE:$SHA\` to \`$SERVICE\`, https://$SITE/." >> "$GITHUB_STEP_SUMMARY"
+
+      # An environment with its own data (environments.json, "ingest": true)
+      # also gets the pull request's ingest image in its job, run as
+      # deploy-ingest.yml runs live's: from the first stage whose parser
+      # changed, which is every stage the first time. Its app shows the new
+      # data once the run ends.
+      - uses: Sustenaut/pubhost/actions/docker-build@cd88da2277ef8772744e14c38df24b350ee2cacb # v0.2.0
+        if: matrix.environment.ingest
+        with:
+          tags: ${{ env.INGEST_IMAGE }}:${{ env.SHA }}
+          scope: data-ingest
+          build-args: DATA_COMMIT=${{ env.SHA }}
+
+      - name: Deploy the ingest image to the environment's job, and run it
+        if: matrix.environment.ingest
+        run: |
+          docker run --rm "$INGEST_IMAGE:$SHA" --version
+          docker run --rm "$INGEST_IMAGE:$SHA" corrections check corrections/eex-french-go-auctions.yaml
+          docker push "$INGEST_IMAGE:$SHA"
+          gcloud run jobs update "$JOB" --region "$REGION" --image "$INGEST_IMAGE:$SHA" --quiet
+          echo "Deployed \`$INGEST_IMAGE:$SHA\` to \`$JOB\`, then: data run $PIPELINE --from auto --trigger deploy" >> "$GITHUB_STEP_SUMMARY"
+          gcloud run jobs execute "$JOB" --region "$REGION" --wait \
+            --args="run,$PIPELINE,--from,auto,--trigger,deploy" \
+            --update-env-vars="GITHUB_REPOSITORY=$GITHUB_REPOSITORY,GITHUB_RUN_ID=$GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT=$GITHUB_RUN_ATTEMPT,GITHUB_WORKFLOW=$GITHUB_WORKFLOW,GITHUB_SHA=$SHA,GITHUB_ACTOR=$GITHUB_ACTOR"

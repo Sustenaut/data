@@ -21,7 +21,7 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for name in $(jq -r '.[]' infra/environments.json); do
+          for name in $(jq -r "keys[]" infra/environments.json); do
             gh label create "deploy-to-$name" --force --color 0E8A16 \
               --description "deploy app deploys this pull request to https://data-$name.sustenaut.eu/"
           done

@@ -22,12 +22,19 @@ locals {
   # service per name in environments.json at data-NAME.sustenaut.eu, deployed
   # from a pull request with the label deploy-to-NAME (deploy-app.yml). Each
   # has its own address and certificate, so one stays reachable while
-  # another's domain is down. All of them read the same store. Adding an
-  # environment: docs/operations.md, "Environments".
-  environments = var.environments_ready ? toset(jsondecode(file("${path.module}/environments.json"))) : toset([])
+  # another's domain is down. An environment with "ingest": true has its own
+  # store, run log and ingest job (environments.tf), which its app reads; the
+  # others read live's store, and only read it. Adding an environment:
+  # docs/operations.md, "Environments".
+  environments = var.environments_ready ? jsondecode(file("${path.module}/environments.json")) : {}
   sites = merge(
-    { live = { service = "data-app", site = "data.sustenaut.eu", cookie = "_data" } },
-    { for name in local.environments : name => { service = "data-app-${name}", site = "data-${name}.sustenaut.eu", cookie = "_data_${name}" } },
+    { live = { service = "data-app", site = "data.sustenaut.eu", cookie = "_data", store = google_storage_bucket.store.name } },
+    { for name, e in local.environments : name => {
+      service = "data-app-${name}"
+      site    = "data-${name}.sustenaut.eu"
+      cookie  = "_data_${name}"
+      store   = e.ingest ? google_storage_bucket.environment_store[name].name : google_storage_bucket.store.name
+    } },
   )
 }
 
@@ -195,7 +202,7 @@ resource "google_cloud_run_v2_service" "app" {
       image = "${local.app_image}:latest"
       env {
         name  = "DATA_STORE"
-        value = "gs://${google_storage_bucket.store.name}"
+        value = "gs://${each.value.store}"
       }
       # The page links the run that built its data; a scheduled run is a
       # Cloud Run execution of the ingest job, shown here.
