@@ -28,6 +28,11 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/ingest", "src/app"]
 
+# Ruff: pubrules' Python standard (pubrules-ruff.toml, managed), which
+# `make lint` and CI's lint job check.
+[tool.ruff]
+extend = "pubrules-ruff.toml"
+
 [tool.coverage.run]
 source = ["ingest", "app"]
 patch = ["subprocess"]

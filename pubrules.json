@@ -10,7 +10,8 @@
       "setup": "make venv",
       "test": "make functional",
       "shellcheck": "bin/data",
-      "terraform-dir": "infra"
+      "terraform-dir": "infra",
+      "lint": ".venv/bin/ruff format --check ."
     }
   },
   "hosting": {

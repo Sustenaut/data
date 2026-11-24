@@ -15,8 +15,21 @@ import pyarrow.parquet as pq
 
 from ingest.core.parser import Note
 
-FIELDS = ("note_id", "run_id", "pipeline", "stage", "parser_name", "parser_version", "item_key",
-          "severity", "kind", "subject", "message", "source_key", "source_sha256")
+FIELDS = (
+    "note_id",
+    "run_id",
+    "pipeline",
+    "stage",
+    "parser_name",
+    "parser_version",
+    "item_key",
+    "severity",
+    "kind",
+    "subject",
+    "message",
+    "source_key",
+    "source_sha256",
+)
 
 SCHEMA = pa.schema([(name, pa.string()) for name in FIELDS])
 
@@ -28,16 +41,34 @@ def note_id(kind: str, subject: str, source: str) -> str:
     return hashlib.sha256(f"{kind}\x1f{subject}\x1f{source}".encode()).hexdigest()[:16]
 
 
-def record(note: Note, *, run_id: str, pipeline: str, stage: str, parser_name: str, parser_version: str,
-           item_key: str, source_key: str, source_sha256: str) -> dict[str, Any]:
+def record(
+    note: Note,
+    *,
+    run_id: str,
+    pipeline: str,
+    stage: str,
+    parser_name: str,
+    parser_version: str,
+    item_key: str,
+    source_key: str,
+    source_sha256: str,
+) -> dict[str, Any]:
     if note.severity not in SEVERITIES:
         raise ValueError(f"note severity must be one of {', '.join(SEVERITIES)}, not {note.severity!r}")
     return {
         "note_id": note_id(note.kind, note.subject, source_sha256 or item_key),
-        "run_id": run_id, "pipeline": pipeline, "stage": stage,
-        "parser_name": parser_name, "parser_version": parser_version, "item_key": item_key,
-        "severity": note.severity, "kind": note.kind, "subject": note.subject, "message": note.message,
-        "source_key": source_key, "source_sha256": source_sha256,
+        "run_id": run_id,
+        "pipeline": pipeline,
+        "stage": stage,
+        "parser_name": parser_name,
+        "parser_version": parser_version,
+        "item_key": item_key,
+        "severity": note.severity,
+        "kind": note.kind,
+        "subject": note.subject,
+        "message": note.message,
+        "source_key": source_key,
+        "source_sha256": source_sha256,
     }
 
 

@@ -42,19 +42,37 @@ def merged_database(ctx, app, datatable):
     rows = []
     for line in body:
         r = dict(zip(header, (v.strip() for v in line), strict=True))
-        rows.append({
-            "provider": "eex", "market": "fr", "certificate_type": "go", "energy_carrier": "electricity",
-            "auction_id": r["auction"], "auction_number": r["number"] or None,
-            "auction_date": date.fromisoformat(r["date"]),
-            "production_period_start": date.fromisoformat(r["production"]),
-            "production_period_end": date.fromisoformat(r["production"]),
-            "segment_level": "region_x_technology", "region": r["region"], "technology": r["technology"],
-            "volume_offered_mwh": number(r["offered"]), "volume_allocated_mwh": number(r["sold"]),
-            "price_weighted_avg_eur_mwh": number(r["price"]), "price_min_eur_mwh": None, "price_max_eur_mwh": None,
-            "reserve_price_eur_mwh": None, "bidders_count": int(r["bidders"]), "winners_count": None,
-            "extras": None, "source_name": "test.xlsx", "source_sha256": "0" * 64, "source_sheet": None,
-            "source_row": len(rows) + 1, "parser_name": "test", "parser_version": "1.0.0",
-        })
+        rows.append(
+            {
+                "provider": "eex",
+                "market": "fr",
+                "certificate_type": "go",
+                "energy_carrier": "electricity",
+                "auction_id": r["auction"],
+                "auction_number": r["number"] or None,
+                "auction_date": date.fromisoformat(r["date"]),
+                "production_period_start": date.fromisoformat(r["production"]),
+                "production_period_end": date.fromisoformat(r["production"]),
+                "segment_level": "region_x_technology",
+                "region": r["region"],
+                "technology": r["technology"],
+                "volume_offered_mwh": number(r["offered"]),
+                "volume_allocated_mwh": number(r["sold"]),
+                "price_weighted_avg_eur_mwh": number(r["price"]),
+                "price_min_eur_mwh": None,
+                "price_max_eur_mwh": None,
+                "reserve_price_eur_mwh": None,
+                "bidders_count": int(r["bidders"]),
+                "winners_count": None,
+                "extras": None,
+                "source_name": "test.xlsx",
+                "source_sha256": "0" * 64,
+                "source_sheet": None,
+                "source_row": len(rows) + 1,
+                "parser_name": "test",
+                "parser_version": "1.0.0",
+            }
+        )
     results = pa.Table.from_pylist(rows, schema=auction_results.SCHEMA)  # noqa: F841 - DuckDB reads it by name
     con = duckdb.connect(str(database(ctx)))
     con.execute("CREATE TABLE auction_results AS SELECT * FROM results")
@@ -161,7 +179,9 @@ def kept_as(app, technology):
     assert {s.technology for s in app["kept"]} == {technology}
 
 
-@when(parsers.parse('the price distribution of those is drawn with {bins:d} bins spaced "{spacing}", counting "{weight}"'))
+@when(
+    parsers.parse('the price distribution of those is drawn with {bins:d} bins spaced "{spacing}", counting "{weight}"')
+)
 def draw_kept_distribution(app, bins, spacing, weight):
     app["distribution"] = data.distribution(app["kept"], bins, spacing, weight)
 
@@ -261,8 +281,14 @@ def open_app_empty(ctx, app, monkeypatch):
 
 
 def widget(test, control: str, label: str):
-    kinds = {"radio": test.radio, "slider": test.slider, "multiselect": test.multiselect, "toggle": test.toggle,
-             "number": test.number_input, "range": test.select_slider}
+    kinds = {
+        "radio": test.radio,
+        "slider": test.slider,
+        "multiselect": test.multiselect,
+        "toggle": test.toggle,
+        "number": test.number_input,
+        "range": test.select_slider,
+    }
     found = [w for w in kinds[control] if (w.key == label[1:] if label.startswith("#") else w.label == label)]
     assert found, f"the app has no {control} {label!r}"
     return found[0]

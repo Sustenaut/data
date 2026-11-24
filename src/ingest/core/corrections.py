@@ -125,7 +125,9 @@ def describe(rule: dict[str, Any]) -> str:
     return "set " + ", ".join(f"{k} to {v}" for k, v in rule["set"].items())
 
 
-def apply(name: str, rows: list[dict[str, Any]], rules: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[Note]]:
+def apply(
+    name: str, rows: list[dict[str, Any]], rules: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], list[Note]]:
     """The rows with the file's corrections applied, and a note for each.
     Each row is a mapping with "row" (its number in the file) and its fields."""
     rows = [dict(r) for r in rows]
@@ -136,21 +138,28 @@ def apply(name: str, rows: list[dict[str, Any]], rules: list[dict[str, Any]]) ->
         matches = [r for r in rows if all(same(r.get(k), v) for k, v in rule["row"].items())]
         if rule["kind"] == "missing_row":
             if matches:
-                raise CorrectionError(f"correction {rule['id']} is no longer needed: {name} now has the row "
-                                      f"(row {matches[0]['row']})")
+                raise CorrectionError(
+                    f"correction {rule['id']} is no longer needed: {name} now has the row (row {matches[0]['row']})"
+                )
             notes.append(Note("data_correction", f"{rule['problem']} ({rule['id']})", subject=name, severity="info"))
             continue
         if len(matches) != 1:
             found = "no row" if not matches else f"{len(matches)} rows"
-            raise CorrectionError(f"correction {rule['id']} is no longer needed as written: {found} of {name} "
-                                  f"match {rule['row']}")
+            raise CorrectionError(
+                f"correction {rule['id']} is no longer needed as written: {found} of {name} match {rule['row']}"
+            )
         target = matches[0]
         if rule["action"] == "drop":
             rows.remove(target)
         else:
             target.update(rule["set"])
-        notes.append(Note("data_correction", f"{rule['problem']} Corrected: {describe(rule)}. ({rule['id']})",
-                          subject=f"{name} row {target['row']}"))
+        notes.append(
+            Note(
+                "data_correction",
+                f"{rule['problem']} Corrected: {describe(rule)}. ({rule['id']})",
+                subject=f"{name} row {target['row']}",
+            )
+        )
     return rows, notes
 
 

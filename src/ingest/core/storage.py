@@ -124,8 +124,7 @@ class GcsReader:
         import google.auth  # noqa: PLC0415 - only a store in a bucket needs it
         from google.auth import exceptions  # noqa: PLC0415
 
-        url = (f"{self.base}/storage/v1/b/{self.bucket}/o/{urllib.parse.quote(self._name(key), safe='')}"
-               "?alt=media")
+        url = f"{self.base}/storage/v1/b/{self.bucket}/o/{urllib.parse.quote(self._name(key), safe='')}?alt=media"
         headers: dict[str, str] = {}
         try:
             if self._credentials is None:
@@ -168,8 +167,9 @@ def open_store(spec: str | Path, uri_base: str | None = None) -> LocalStorage | 
     return LocalStorage(spec, uri_base)
 
 
-def latest_outputs(storage: LocalStorage | GcsReader, prefix: str, name: str | None = None
-                   ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def latest_outputs(
+    storage: LocalStorage | GcsReader, prefix: str, name: str | None = None
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """The newest published run of the stage stored under `prefix` (its
     latest.json), and its outputs, those named `name` only when given."""
     latest = storage.get_json_or_none(f"{prefix}/latest.json")
