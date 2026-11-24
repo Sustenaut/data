@@ -18,7 +18,7 @@ it shows is built by the [ingest pipeline](ingest.md).
 ```sh
 make venv                                   # once: .venv with everything the suite and the app need
 bin/data output pipelines/eex-french-go-auctions.yaml database \
-  --store gs://sustenaut-soldera-store --copy-to go-auctions.duckdb
+  --store gs://sustenaut-data-store --copy-to go-auctions.duckdb
 bin/data app --database go-auctions.duckdb      # then open http://localhost:8501
 ```
 
@@ -26,7 +26,7 @@ The copy needs Google credentials that can read the bucket
 (`gcloud auth application-default login`). Without them, build a database
 yourself with `bin/data run pipelines/eex-french-go-auctions.yaml`, which
 fetches from EEX and leaves its store in `store/`, then run `bin/data app
---store ./store`. `bin/data app --store gs://sustenaut-soldera-store` reads
+--store ./store`. `bin/data app --store gs://sustenaut-data-store` reads
 the bucket directly, as the deployed app does.
 
 Streamlit reloads the page when you save a file.
@@ -57,11 +57,11 @@ runs `bin/data app`. To check a number, call the function in `data.py` from a
 Python shell on a copy of the database. Chart and layout problems are easiest
 to see in a screenshot: Playwright with `colorScheme: 'dark'` checks dark mode.
 
-**Deployed.** The app runs in the Cloud Run service `soldera-app`, behind
+**Deployed.** The app runs in the Cloud Run service `data-app`, behind
 oauth2-proxy in the same service. Its logs:
 
 ```
-resource.type="cloud_run_revision" resource.labels.service_name="soldera-app"
+resource.type="cloud_run_revision" resource.labels.service_name="data-app"
 ```
 
 A page that says it cannot read the auction results means the bucket has no
@@ -85,7 +85,7 @@ oauth2-proxy and the team's roles, not the app: see [Operations](operations.md).
 
 Services the app depends on:
 
-- **The store bucket** `gs://sustenaut-soldera-store`, where the ingest
+- **The store bucket** `gs://sustenaut-data-store`, where the ingest
   pipeline publishes the database. See [Developing the ingest pipeline](ingest.md).
 - **auth.sustenaut.eu**, the team sign-in, through oauth2-proxy in front of the app.
 - **Cloud Run**, which serves it. See [Operations](operations.md).

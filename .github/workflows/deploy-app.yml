@@ -1,7 +1,7 @@
 # Builds the app's image (app.Dockerfile) from main, checks that it serves
 # the landing page and the go-auctions page, pushes it, keeps a copy of
-# oauth2-proxy beside it, and points the soldera-app service's app container
-# at it. It runs as soldera-deploy (infra/), like deploy-ingest.yml, and waits for
+# oauth2-proxy beside it, and points the data-app service's app container
+# at it. It runs as data-deploy (infra/), like deploy-ingest.yml, and waits for
 # the same repository variable DEPLOY_CI. Until infra/'s serve_app is true
 # there is no service: it then pushes the images, which the service's first
 # revision starts from, and stops there. The repository variable APP_SERVICE
@@ -21,17 +21,17 @@ on:
 
 permissions: { contents: read, id-token: write }
 
-concurrency: { group: deploy-soldera-app, cancel-in-progress: false }
+concurrency: { group: deploy-data-app, cancel-in-progress: false }
 
 env:
   REGION: europe-north1
-  IMAGE: europe-north1-docker.pkg.dev/sustenaut/soldera/app
-  SERVICE: soldera-app
+  IMAGE: europe-north1-docker.pkg.dev/sustenaut/data/app
+  SERVICE: data-app
   # oauth2-proxy, the service's front container (infra/app.tf), by its
   # digest: Cloud Run does not pull from quay.io, so this keeps a copy of
-  # exactly that release in soldera's registry. The planning app's release.
+  # exactly that release in this stack's registry. The planning app's release.
   PROXY_FROM: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
-  PROXY: europe-north1-docker.pkg.dev/sustenaut/soldera/oauth2-proxy:v7.15.5
+  PROXY: europe-north1-docker.pkg.dev/sustenaut/data/oauth2-proxy:v7.15.5
 
 jobs:
   deploy:
@@ -43,7 +43,7 @@ jobs:
       - uses: Sustenaut/pubhost/actions/docker-build@cd88da2277ef8772744e14c38df24b350ee2cacb # v0.2.0
         with:
           tags: ${{ env.IMAGE }}:${{ github.sha }}
-          scope: soldera-app
+          scope: data-app
           file: app.Dockerfile
           build-args: DATA_COMMIT=${{ github.sha }}
           no-cache: ${{ inputs.no-cache || false }}
@@ -63,7 +63,7 @@ jobs:
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: projects/948171295184/locations/global/workloadIdentityPools/github/providers/github
-          service_account: soldera-deploy@sustenaut.iam.gserviceaccount.com
+          service_account: data-deploy@sustenaut.iam.gserviceaccount.com
 
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 

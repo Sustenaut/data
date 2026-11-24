@@ -30,7 +30,7 @@ published output of a stage:
 bin/data output pipelines/eex-french-go-auctions.yaml database                                   # its path
 bin/data output pipelines/eex-french-go-auctions.yaml database --copy-to go-auctions.duckdb   # a copy
 bin/data output pipelines/eex-french-go-auctions.yaml discover --name page.html               # one of several
-bin/data output pipelines/eex-french-go-auctions.yaml database --store gs://sustenaut-soldera-store --copy-to go-auctions.duckdb
+bin/data output pipelines/eex-french-go-auctions.yaml database --store gs://sustenaut-data-store --copy-to go-auctions.duckdb
 ```
 
 The last reads the bucket with Google's application default credentials.
@@ -99,14 +99,14 @@ option in a pipeline file may name an environment variable, `${NAME}` or
 **Locally.** Run the failing stage alone on a copy of the store:
 
 ```sh
-mkdir -p store && gcloud storage cp -r "gs://sustenaut-soldera-store/*" ./store
+mkdir -p store && gcloud storage cp -r "gs://sustenaut-data-store/*" ./store
 bin/data run pipelines/eex-french-go-auctions.yaml --store ./store --from STAGE --to STAGE
 ```
 
 The run log in `runs.jsonl` has a row per stage with every failed item's
 error and traceback. Each stage's notes are in its `notes.parquet`.
 
-**Deployed.** The pipeline runs as the Cloud Run job `soldera-ingest`. The
+**Deployed.** The pipeline runs as the Cloud Run job `data-ingest`. The
 [runbook](runbook.md) walks through a failed run: the run log's views in
 BigQuery, the failed items, the code that ran, and the job's logs.
 
@@ -127,7 +127,7 @@ BigQuery, the failed items, the code that ran, and the job's logs.
 Services the pipeline depends on:
 
 - **eex.com**, the source of every file.
-- **The store bucket** `gs://sustenaut-soldera-store` and **BigQuery**
+- **The store bucket** `gs://sustenaut-data-store` and **BigQuery**
   (the run log), in the `sustenaut` project.
 - **Cloud Run** and **Cloud Scheduler**, which run it weekly. See
   [Operations](operations.md).
