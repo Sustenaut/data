@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+"""deploy-environments: where a deploy workflow's run deploys to.
+
+`bin/deploy-environments app` (deploy-app.yml) or `bin/deploy-environments
+ingest` (deploy-ingest.yml) prints a JSON list of the environments this run
+deploys that part to, each {"name": ..., "live": true|false}, read from
+GitHub's event and infra/environments.json:
+
+  a push to main, or a run by hand    app: live. ingest: live, and, when
+                                      ENVIRONMENTS is on, each environment
+                                      with its own data ("data": "own"), so
+                                      those read by others never show a stale
+                                      pipeline's data.
+  a pull request, labelled            the environments its deploy-to-NAME
+                                      labels name (only the label just added,
+                                      on "labeled"); for ingest, only those of
+                                      them with their own data.
+
+live comes from main alone, never from a label, and a NAME that
+environments.json lacks is left out. Both workflows ask this, so they always
+agree on where a pull request goes.
+
+Reads EVENT (github.event_name), ACTION (github.event.action), ADDED
+(github.event.label.name), LABELS (the pull request's label names, as JSON)
+and ENVIRONMENTS (the repository variable).
+"""
+
+import json
+import os
+import sys
+from pathlib import Path
+
+REPOSITORY = Path(__file__).resolve().parents[1]
+PREFIX = "deploy-to-"
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 1 or argv[0] not in ("app", "ingest"):
+        print("usage: deploy-environments app|ingest", file=sys.stderr)
+        return 2
+    part = argv[0]
+    known = json.loads((REPOSITORY / "infra" / "environments.json").read_text())
+    own = [name for name, e in known.items() if e["data"] == "own"]
+
+    if os.environ.get("EVENT") != "pull_request":
+        names = ["live"]
+        if part == "ingest" and os.environ.get("ENVIRONMENTS") == "on":
+            names += own
+    else:
+        if os.environ.get("ACTION") == "labeled":
+            labels = [os.environ.get("ADDED", "")]
+        else:
+            labels = json.loads(os.environ.get("LABELS") or "[]")
+        names = [label.removeprefix(PREFIX) for label in labels if label.startswith(PREFIX)]
+        names = [name for name in names if name in known]
+        if part == "ingest":
+            names = [name for name in names if name in own]
+
+    print(json.dumps([{"name": name, "live": name == "live"} for name in names]))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

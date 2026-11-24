@@ -38,8 +38,8 @@ the accounts and custom roles above, the Terraform account
 | --- | --- | --- |
 | **ci** (`pr.yml`, `main.yml`) | each pull request and push to main | pubrules' checks, the suite, Terraform plan, SonarQube Cloud |
 | **terraform** | pushes to main that touch `infra/`, or by hand | applies `infra/` as `terraform-data` (pubhost's workflow, secrets through pubsec). An apply that destroys or replaces a resource needs the label `terraform-destroy` on its pull request |
-| **deploy ingest pipeline** | pushes to main that touch the pipeline | builds and checks the ingest image, points the job at it, and runs the job with `--from auto`, which does nothing when every stage is current; then the same for each environment with its own data (below, "Environments") |
-| **deploy app** | pushes to main that touch the app, and pull requests labelled `deploy-to-NAME` | builds the app image, checks it serves both pages, and points an environment's service's app container at it: live from main, NAME from a pull request (below, "Environments") |
+| **deploy ingest pipeline** | pushes to main that touch the pipeline, and pull requests labelled `deploy-to-NAME` | builds and checks the ingest image, points a job at it, and runs it with `--from auto`, which does nothing when every stage is current: from main, live's job and each environment's with its own data; from a pull request, the job of NAME, if it has its own data (below, "Environments") |
+| **deploy app** | pushes to main that touch the app, and pull requests labelled `deploy-to-NAME` | builds the app image, checks it serves both pages, and points a service's app container at it: live's from main, NAME's from a pull request (below, "Environments") |
 | **labels** | pushes to main that touch `infra/environments.json` | makes a label `deploy-to-NAME` for each environment |
 | **run ingest pipeline** | by hand (Actions, Run workflow) | runs the job now with `from`, `to` and `force`, and fails when it does |
 | **debug markers** | pull requests, main, and each closed issue | fails while temporary code marked `DEBUG(#N)` names a closed issue |
@@ -60,9 +60,12 @@ each its own Cloud Run service at its own address:
 | branch | data-branch.sustenaut.eu | `data-app-branch` | staging's, read only | a pull request with the label `deploy-to-branch` |
 
 Adding the label deploys the pull request's head, and each push to it
-deploys again while the label is on. Staging (`"data": "own"`) also gets the
-pull request's ingest image in its own job, which then runs with `--from
-auto`: that is where pipeline changes are tried. Its job has no schedule, and
+deploys again while the label is on: **deploy app** its app, and **deploy
+ingest pipeline** its pipeline, where the environment has its own data.
+`bin/deploy-environments` answers both where a run goes, so they agree.
+Staging (`"data": "own"`) gets the pull request's ingest image in its own
+job, which then runs with `--from auto`: that is where pipeline changes are
+tried. Its job has no schedule, and
 runs as `data-ingest-staging`, which can write only staging's store and run
 log. Branch (`"data": "staging"`) is for the front end only: it reads
 staging's store and runs nothing (`infra/environments.tf`). So that branch
