@@ -19,7 +19,7 @@ variable "serve_app" {
 variable "environments_ready" {
   description = "Whether the environments in environments.json get their services, and pull requests their deploy account. shared-infra makes that account (data-preview) and the pool github-preview it signs in through; set this to true once they exist (docs/operations.md, \"Environments\")."
   type        = bool
-  default     = false
+  default     = true
 }
 
 # Set by ./pubsec run (the terraform workflow, or ./with-secrets on a laptop)
