@@ -5,7 +5,7 @@
 # Each rule gives the row exactly as EEX published it, and keeps an excerpt
 # of the file around it (accents as EEX meant them), with the file's hash,
 # so the evidence stays here when EEX corrects or removes the file. CI
-# checks every rule against its excerpt: `soldera corrections check FILE`.
+# checks every rule against its excerpt: `data corrections check FILE`.
 # The parse stage
 # applies the rule and leaves a note the app shows. When a new version of
 # the file no longer has the mistake, the rule no longer matches and the

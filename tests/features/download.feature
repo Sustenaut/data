@@ -6,7 +6,7 @@ Feature: Stage 2, download: every file the page links to
   has not changed costs nothing to fetch again.
 
   Background:
-    Given the program under test is "soldera"
+    Given the program under test is "data"
     And a scratch directory
     And the repository's pipeline "eex-french-power-auctions"
 
@@ -26,7 +26,7 @@ Feature: Stage 2, download: every file the page links to
       | 2025/january.xlsx        | january     |
       | february.csv             | february    |
       | __MACOSX/2025/._jan.xlsx | macos stuff |
-    When I run "soldera run pipeline.yaml --to download"
+    When I run "data run pipeline.yaml --to download"
     Then it succeeds
     And it prints "download: eex-french-auction-download@1.0.0 succeeded: 2 items, 2 built, 0 cached, 0 failed"
     And the published outputs of "download" are:
@@ -55,8 +55,8 @@ Feature: Stage 2, download: every file the page links to
       | 2025/january.xlsx        | january     |
       | february.csv             | february    |
       | __MACOSX/2025/._jan.xlsx | macos stuff |
-    And I ran "soldera run pipeline.yaml --to download"
-    When I run "soldera run pipeline.yaml --to download"
+    And I ran "data run pipeline.yaml --to download"
+    When I run "data run pipeline.yaml --to download"
     Then it succeeds
     And the "eex" service was asked "GET /fileadmin/GO/results.zip" 2 times
     And the stage "download" stores 4 objects
@@ -72,14 +72,14 @@ Feature: Stage 2, download: every file the page links to
     And the "eex" service answers "GET /fileadmin/GO/results.zip" with a zip holding:
       | path         | content  |
       | february.csv | february |
-    When I run "soldera run pipeline.yaml --to download"
+    When I run "data run pipeline.yaml --to download"
     Then the exit code is 1
     And it prints "download: eex-french-auction-download@1.0.0 failed: 2 items, 1 built, 0 cached, 1 failed"
     And stderr mentions "download: latest.xlsx failed: HttpError: GET"
     And stderr mentions "answered 404"
 
   Scenario: A busy server is asked again, and a file that keeps failing fails after three tries
-    Given the environment sets "SOLDERA_HTTP_RETRY_DELAY" to "0"
+    Given the environment sets "DATA_HTTP_RETRY_DELAY" to "0"
     And the "eex" service answers "GET /en/markets/energy-certificates/french-auctions-power" with 200 and:
       """
       <h2>Guarantees of Origin Data</h2>
@@ -92,7 +92,7 @@ Feature: Stage 2, download: every file the page links to
       fetched on the second try
       """
     And the "eex" service answers "GET /fileadmin/GO/down.xlsx" with 502
-    When I run "soldera run pipeline.yaml --to download"
+    When I run "data run pipeline.yaml --to download"
     Then the exit code is 1
     And the "eex" service was asked "GET /fileadmin/GO/busy.xlsx" 2 times
     And the "eex" service was asked "GET /fileadmin/GO/down.xlsx" 3 times
@@ -106,7 +106,7 @@ Feature: Stage 2, download: every file the page links to
       <h2>Guarantees of Origin Data</h2>
       <a href="https://elsewhere.example/fileadmin/GO/other.pdf">pdf</a>
       """
-    When I run "soldera run pipeline.yaml --to download"
+    When I run "data run pipeline.yaml --to download"
     Then the exit code is 1
     And stderr mentions "download: other.pdf failed: ValueError: https://elsewhere.example/fileadmin/GO/other.pdf is not on"
 
@@ -125,7 +125,7 @@ Feature: Stage 2, download: every file the page links to
       """
       not a zip at all
       """
-    When I run "soldera run pipeline.yaml --to download"
+    When I run "data run pipeline.yaml --to download"
     Then the exit code is 1
     And stderr mentions "download: results.zip failed: ValueError: results.zip is not a readable zip archive"
 
@@ -136,6 +136,6 @@ Feature: Stage 2, download: every file the page links to
       <a href="/fileadmin/GO/results.zip">zip</a>
       """
     And the "eex" service answers "GET /fileadmin/GO/results.zip" with a zip whose "2021/march.xlsx" is corrupt
-    When I run "soldera run pipeline.yaml --to download"
+    When I run "data run pipeline.yaml --to download"
     Then the exit code is 1
     And stderr mentions "download: results.zip failed: ValueError: results.zip: cannot read 2021/march.xlsx: Bad CRC-32"

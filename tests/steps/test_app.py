@@ -1,5 +1,5 @@
 """The power-auctions app's steps: a small merged database in the scenario's
-scratch directory, the numbers src/soldera/app/data.py draws from it, and
+scratch directory, the numbers src/app/data.py draws from it, and
 the app itself, run by Streamlit's own test harness."""
 
 from __future__ import annotations
@@ -12,13 +12,13 @@ import pyarrow as pa
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
-from soldera.app import data
-from soldera.canonical import auction_results
+from app import data
+from ingest.canonical import auction_results
 
 scenarios("app.feature")
 
 REPOSITORY = Path(__file__).resolve().parents[2]
-APP = REPOSITORY / "src" / "soldera" / "app" / "streamlit_app.py"
+APP = REPOSITORY / "src" / "app" / "streamlit_app.py"
 
 
 @pytest.fixture
@@ -200,7 +200,7 @@ def kept(app, count, auctions):
 
 def power_auctions() -> None:
     """The power-auctions page on its own, as AppTest runs a function."""
-    from soldera.app.page import main  # noqa: PLC0415
+    from app.page import main  # noqa: PLC0415
 
     main()
 
@@ -208,7 +208,7 @@ def power_auctions() -> None:
 def run_app(app, monkeypatch, env: dict[str, str], landing: bool = False) -> None:
     from streamlit.testing.v1 import AppTest  # noqa: PLC0415 - only these scenarios need Streamlit
 
-    for name in ("SOLDERA_DATABASE", "SOLDERA_STORE", "SOLDERA_PIPELINE"):
+    for name in ("DATA_DATABASE", "DATA_STORE", "DATA_PIPELINE"):
         monkeypatch.delenv(name, raising=False)
     for name, value in env.items():
         monkeypatch.setenv(name, value)
@@ -223,12 +223,12 @@ def run_app(app, monkeypatch, env: dict[str, str], landing: bool = False) -> Non
 
 @when("the app is opened on the database")
 def open_app(ctx, app, monkeypatch):
-    run_app(app, monkeypatch, {"SOLDERA_DATABASE": str(database(ctx))})
+    run_app(app, monkeypatch, {"DATA_DATABASE": str(database(ctx))})
 
 
 @when("the site's landing page is opened")
 def open_landing(ctx, app, monkeypatch):
-    run_app(app, monkeypatch, {"SOLDERA_DATABASE": str(database(ctx))}, landing=True)
+    run_app(app, monkeypatch, {"DATA_DATABASE": str(database(ctx))}, landing=True)
 
 
 @then(parsers.parse('the landing page links to "{page}" as "{label}"'))
@@ -241,7 +241,7 @@ def links_to(app, page, label):
 @when("the app is opened on an empty store")
 def open_app_empty(ctx, app, monkeypatch):
     (ctx.directory / "store").mkdir()
-    run_app(app, monkeypatch, {"SOLDERA_STORE": str(ctx.directory / "store")})
+    run_app(app, monkeypatch, {"DATA_STORE": str(ctx.directory / "store")})
 
 
 def widget(test, control: str, label: str):

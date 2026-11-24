@@ -1,5 +1,5 @@
 # The app at data.sustenaut.eu: the landing page at / and the power-auctions
-# app at /power-auctions (src/soldera/app), one Streamlit server in the Cloud
+# app at /power-auctions (src/app), one Streamlit server in the Cloud
 # Run service soldera-app, with oauth2-proxy in front of it in the same
 # service. The proxy signs people in with the team realm at auth.sustenaut.eu
 # and lets in only those with the role data, as business-plan's planning app
@@ -181,13 +181,13 @@ resource "google_cloud_run_v2_service" "app" {
       name  = "app"
       image = "${local.app_image}:latest"
       env {
-        name  = "SOLDERA_STORE"
+        name  = "DATA_STORE"
         value = "gs://${google_storage_bucket.store.name}"
       }
       # The page links the run that built its data; a scheduled run is a
       # Cloud Run execution of the ingest job, shown here.
       env {
-        name  = "SOLDERA_EXECUTION_URL"
+        name  = "DATA_EXECUTION_URL"
         value = "https://console.cloud.google.com/run/jobs/executions/details/${local.region}/{execution}/tasks?project=${local.project}"
       }
       resources {

@@ -1,7 +1,7 @@
-# The power-auctions app's image: soldera and the packages
+# The power-auctions app's image: this repository's code and the packages
 # requirements-app.lock pins (the app extra), each checked against its
 # sha256. It serves the app on Cloud Run's PORT and reads the newest database
-# the merge stage published in SOLDERA_STORE (gs://BUCKET, over its API).
+# the merge stage published in DATA_STORE (gs://BUCKET, over its API).
 FROM python:3.13-slim-trixie@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-RUN useradd --system --uid 10001 --home-dir /app soldera
+RUN useradd --system --uid 10001 --home-dir /app runner
 WORKDIR /app
 
 COPY requirements-app.lock ./
@@ -21,11 +21,11 @@ COPY corrections ./corrections
 # The theme (Sustenaut's colours and fonts), read from the directory Streamlit starts in.
 COPY .streamlit ./.streamlit
 
-ARG SOLDERA_COMMIT=dev
+ARG DATA_COMMIT=dev
 ENV PYTHONPATH=/app/src \
-    SOLDERA_COMMIT=${SOLDERA_COMMIT} \
+    DATA_COMMIT=${DATA_COMMIT} \
     PORT=8080
 
-USER soldera
+USER runner
 EXPOSE 8080
-ENTRYPOINT ["python", "-m", "soldera", "app"]
+ENTRYPOINT ["python", "-m", "ingest", "app"]

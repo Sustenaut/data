@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# data: run an ingest pipeline, or the app. `data --help` lists the commands.
+# Runs src/ingest with the repository's .venv, as the suite and CI do.
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+python="${DATA_PYTHON:-$here/.venv/bin/python}"
+[ -x "$python" ] || python=python3
+PYTHONPATH="$here/src${PYTHONPATH:+:$PYTHONPATH}" exec "$python" -m ingest "$@"

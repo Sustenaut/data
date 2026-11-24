@@ -145,7 +145,7 @@ resource "google_bigquery_table" "pipeline_stage_runs" {
   dataset_id          = google_bigquery_dataset.soldera.dataset_id
   table_id            = "pipeline_stage_runs"
   description         = "One row when a stage starts and one when it ends, written by soldera run."
-  schema              = file("${path.module}/../src/soldera/core/schemas/pipeline_stage_runs.json")
+  schema              = file("${path.module}/../src/ingest/core/schemas/pipeline_stage_runs.json")
   deletion_protection = true
 
   time_partitioning {
@@ -164,7 +164,7 @@ resource "google_bigquery_table" "stage_notes" {
   deletion_protection = true
 
   # Named, not detected: detecting reads a file, and there is none until the
-  # first run. The columns are soldera.core.notes.FIELDS, every one a string.
+  # first run. The columns are ingest.core.notes.FIELDS, every one a string.
   external_data_configuration {
     autodetect    = false
     source_format = "PARQUET"
@@ -224,15 +224,15 @@ resource "google_cloud_run_v2_job" "ingest_job" {
         image = "us-docker.pkg.dev/cloudrun/container/job"
 
         env {
-          name  = "SOLDERA_STORE"
+          name  = "DATA_STORE"
           value = "/store"
         }
         env {
-          name  = "SOLDERA_STORE_URI"
+          name  = "DATA_STORE_URI"
           value = "gs://${google_storage_bucket.store.name}"
         }
         env {
-          name  = "SOLDERA_RUN_LOG"
+          name  = "DATA_RUN_LOG"
           value = "bigquery:${local.run_log}"
         }
 

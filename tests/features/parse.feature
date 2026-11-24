@@ -12,7 +12,7 @@ Feature: Stage 4, parse: each results file into canonical auction rows
   Thermique), unless a rule says that file is known to.
 
   Background:
-    Given the program under test is "soldera"
+    Given the program under test is "data"
     And a scratch directory
     And the repository's pipeline "eex-french-power-auctions"
 
@@ -27,7 +27,7 @@ Feature: Stage 4, parse: each results file into canonical auction rows
       | Auvergne-Rhône-Alpes | Eolien onshore | 59529   | 59529 | 0.78  | 8       |
       | Haut-de-France       | Solaire        | 2172    | 11    | 0.41  | 1       |
       | Île-de-France        | Hydraulique    | 335     | -     | -     | 0       |
-    When I run "soldera run pipeline.yaml --to parse"
+    When I run "data run pipeline.yaml --to parse"
     Then it succeeds
     And it prints "parse: eex-french-auction@1.0.0 succeeded: 1 items, 1 built, 0 cached, 0 failed"
     And the parse stage wrote 48 rows
@@ -51,7 +51,7 @@ Feature: Stage 4, parse: each results file into canonical auction rows
       | region    | technology | offered | sold | price | winners |
       | Bretagne  | Solaire    | 6225    | 6225 | 0.4   | 4       |
       | Grand Est | Thermique  | 5246    | -    | -     | 0       |
-    When I run "soldera run pipeline.yaml --to parse"
+    When I run "data run pipeline.yaml --to parse"
     Then it succeeds
     And the parse stage wrote 48 rows
     And the parsed rows of "parse" include, in order:
@@ -72,7 +72,7 @@ Feature: Stage 4, parse: each results file into canonical auction rows
       Bretagne;Solaire;6225;6225;0,4;4
       <row>
       """
-    When I run "soldera run pipeline.yaml --to parse"
+    When I run "data run pipeline.yaml --to parse"
     Then the exit code is 1
     And stderr mentions "20210818_May_2021_27_Global_Results_detailedresults.csv row 4: <problem>"
     And stderr mentions "stopped at stage 4 of 5, parse"
@@ -95,7 +95,7 @@ Feature: Stage 4, parse: each results file into canonical auction rows
     And the "eex" service answers "GET /fileadmin/GO/20210818_May_2021_27_Global_Results_detailedresults.csv" with a full results csv for 28 participants, where:
       | region   | technology | offered | sold | price | winners |
       | Bretagne | Solaire    | absent  |      |       |         |
-    When I run "soldera run pipeline.yaml --to parse"
+    When I run "data run pipeline.yaml --to parse"
     Then the exit code is 1
     And stderr mentions "20210818_May_2021_27_Global_Results_detailedresults.csv lacks 1 of the 48 region and technology segments: Bretagne Solaire"
 
@@ -109,7 +109,7 @@ Feature: Stage 4, parse: each results file into canonical auction rows
       | region               | technology     | offered | sold | price | winners | after                              |
       | Auvergne-Rhône-Alpes | Eolien onshore | absent  |      |       |         |                                    |
       | Auvergne-Rhône-Alpes | Eolien onshore | 100     | 100  | 0.5   | 1       | Auvergne-Rhône-Alpes / Hydraulique |
-    When I run "soldera run pipeline.yaml --to parse"
+    When I run "data run pipeline.yaml --to parse"
     Then the exit code is 1
     And stderr mentions "20210818_May_2021_27_Global_Results_detailedresults.csv row 4: Auvergne-Rhône-Alpes Hydraulique is out of EEX's usual order, where Auvergne-Rhône-Alpes Eolien onshore belongs"
 
@@ -140,7 +140,7 @@ Feature: Stage 4, parse: each results file into canonical auction rows
           evidence: The file as published.
           reported_to_provider: "no"
       """
-    When I run "soldera run pipeline.yaml --to parse"
+    When I run "data run pipeline.yaml --to parse"
     Then it succeeds
     And the parse stage wrote 47 rows
     And the notes of "parse" in the latest run are:
@@ -166,7 +166,7 @@ Feature: Stage 4, parse: each results file into canonical auction rows
           evidence: It was there before.
           reported_to_provider: "no"
       """
-    When I run "soldera run pipeline.yaml --to parse"
+    When I run "data run pipeline.yaml --to parse"
     Then the exit code is 1
     And stderr mentions "correction the-rule is no longer needed: 20210818_May_2021_27_Global_Results_detailedresults.csv <problem>"
 
@@ -213,7 +213,7 @@ Feature: Stage 4, parse: each results file into canonical auction rows
             - {row: 28, region: Île-de-France, technology: Eolien onshore}
             - {row: 29, region: Île-de-France, technology: Solaire}
       """
-    When I run "soldera run pipeline.yaml --to parse"
+    When I run "data run pipeline.yaml --to parse"
     Then it succeeds
     And the parse stage wrote 47 rows
     And the parsed rows of "parse" include, in order:
@@ -250,7 +250,7 @@ Feature: Stage 4, parse: each results file into canonical auction rows
           excerpt:
             - {row: 5, region: Bretagne, technology: Hydraulique, volume_offered: 7}
       """
-    When I run "soldera run pipeline.yaml --to parse"
+    When I run "data run pipeline.yaml --to parse"
     Then it succeeds
     And the parse stage wrote 48 rows
     And the parsed rows of "parse" include, in order:
@@ -281,7 +281,7 @@ Feature: Stage 4, parse: each results file into canonical auction rows
           excerpt:
             - {row: 51, region: Provence-Alpes-Côte d'Azur, technology: Thermique, volume_offered: 2959}
       """
-    When I run "soldera run pipeline.yaml --to parse"
+    When I run "data run pipeline.yaml --to parse"
     Then the exit code is 1
     And stderr mentions "<problem>"
 
@@ -312,7 +312,7 @@ Feature: Stage 4, parse: each results file into canonical auction rows
           action: drop
           problem: Something.
       """
-    When I run "soldera run pipeline.yaml --to parse"
+    When I run "data run pipeline.yaml --to parse"
     Then the exit code is 1
     And stderr mentions "correction 'no-evidence' lacks evidence, reported_to_provider"
 
@@ -326,17 +326,17 @@ Feature: Stage 4, parse: each results file into canonical auction rows
       """
       not a workbook
       """
-    When I run "soldera run pipeline.yaml --to parse"
+    When I run "data run pipeline.yaml --to parse"
     Then the exit code is 1
     And stderr mentions "20190918_April_2019_global_results.xlsx is not a readable xlsx workbook"
 
   Scenario: The repository's corrections each match the excerpt they keep
-    When I run "soldera corrections check corrections/eex-french-power-auctions.yaml"
+    When I run "data corrections check corrections/eex-french-power-auctions.yaml"
     Then it succeeds
     And it prints "0 problems"
 
   Scenario Outline: A corrections file must be a YAML file inside the working directory
-    When I run "soldera corrections check <path>"
+    When I run "data corrections check <path>"
     Then the exit code is 2
     And stderr mentions "<problem>"
 
@@ -361,7 +361,7 @@ Feature: Stage 4, parse: each results file into canonical auction rows
           excerpt:
             - {row: 52, region: Provence-Alpes-Côte d'Azur, technology: Thermique, volume_offered: 2975}
       """
-    When I run "soldera corrections check corrections/eex-french-power-auctions.yaml"
+    When I run "data corrections check corrections/eex-french-power-auctions.yaml"
     Then the exit code is 1
     And stderr mentions "off-by-one: on its excerpt, correction off-by-one is no longer needed as written: no row of 20260121_October_2025_7_GLOBAL_Results_detailedresults.csv match"
     And it prints "1 rules, 1 checked against their excerpts, 1 problems"
@@ -393,7 +393,7 @@ Feature: Stage 4, parse: each results file into canonical auction rows
           excerpt:
             - {row: 4, region: Bretagne}
       """
-    When I run "soldera run pipeline.yaml --to parse"
+    When I run "data run pipeline.yaml --to parse"
     Then the exit code is 1
     And stderr mentions "correction typo: <problem>"
 
