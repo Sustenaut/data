@@ -80,9 +80,11 @@ def check_unique(rows: list[dict[str, Any]]) -> None:
         key = tuple(row[k] for k in UNIQUE)
         if key in seen:
             first = seen[key]
-            raise Duplicate(f"{row['auction_id']} has {row['region']} {row['technology']} twice: "
-                            f"{first['source_name']} row {first['source_row']} and "
-                            f"{row['source_name']} row {row['source_row']}")
+            raise Duplicate(
+                f"{row['auction_id']} has {row['region']} {row['technology']} twice: "
+                f"{first['source_name']} row {first['source_row']} and "
+                f"{row['source_name']} row {row['source_row']}"
+            )
         seen[key] = row
     for auction, names in sorted(files.items()):
         if len(names) > 1:
@@ -130,25 +132,38 @@ def series_notes(rows: list[dict[str, Any]]) -> list[Note]:
                 numbering += 1
             elif number > previous + 1:
                 missing = f"{previous + 1}" if number == previous + 2 else f"{previous + 1} to {number - 1}"
-                notes.append(Note("auction_number_gap",
-                                  f"No results for auction number {missing}: the auctions go from "
-                                  f"{label(before)} to {label(auction)}.",
-                                  subject=f"{before['auction_id']}..{auction['auction_id']}", severity="info"))
+                notes.append(
+                    Note(
+                        "auction_number_gap",
+                        f"No results for auction number {missing}: the auctions go from "
+                        f"{label(before)} to {label(auction)}.",
+                        subject=f"{before['auction_id']}..{auction['auction_id']}",
+                        severity="info",
+                    )
+                )
         by_number[(numbering, auction["auction_number"])].append(auction)
         last = (auction, number)
     for (_, number), users in by_number.items():
         if len(users) > 1:
-            notes.append(Note("auction_number_repeated",
-                              f"Auction number {number} is used by {len(users)} auctions: "
-                              f"{', '.join(label(u) for u in users)}.",
-                              subject=f"auction number {number}", severity="info"))
+            notes.append(
+                Note(
+                    "auction_number_repeated",
+                    f"Auction number {number} is used by {len(users)} auctions: {', '.join(label(u) for u in users)}.",
+                    subject=f"auction number {number}",
+                    severity="info",
+                )
+            )
     produced = {a["production_period_start"].replace(day=1) for a in auctions}
     if produced:
         for month in months(min(produced), max(produced)):
             if month not in produced:
-                notes.append(Note("production_month_missing",
-                                  f"No auction results for production in {month:%B %Y}.",
-                                  subject=f"{month:%Y-%m}"))
+                notes.append(
+                    Note(
+                        "production_month_missing",
+                        f"No auction results for production in {month:%B %Y}.",
+                        subject=f"{month:%Y-%m}",
+                    )
+                )
     return notes
 
 
@@ -188,11 +203,18 @@ class Merge(Parser):
         auctions = auctions_of(rows)
         trigger = trigger_context()
         build = {
-            "pipeline": ctx.pipeline, "stage": ctx.stage, "parser": self.ref(), "run_id": ctx.run_id,
+            "pipeline": ctx.pipeline,
+            "stage": ctx.stage,
+            "parser": self.ref(),
+            "run_id": ctx.run_id,
             # Where the run can be seen: its GitHub Actions run, or its Cloud Run execution.
-            "github_run_url": trigger.get("github_run_url"), "cloud_run_execution": trigger.get("cloud_run_execution"),
+            "github_run_url": trigger.get("github_run_url"),
+            "cloud_run_execution": trigger.get("cloud_run_execution"),
             "built_at": datetime.now(UTC).replace(tzinfo=None),
-            "files": len(files), "rows": len(rows), "auctions": len(auctions), "notes": len(notes),
+            "files": len(files),
+            "rows": len(rows),
+            "auctions": len(auctions),
+            "notes": len(notes),
             "first_auction_date": auctions[0]["auction_date"] if auctions else None,
             "last_auction_date": auctions[-1]["auction_date"] if auctions else None,
             "inputs": json.dumps([{"name": a.item_key or a.name, "sha256": a.sha256} for a in item.inputs]),

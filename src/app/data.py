@@ -33,8 +33,14 @@ LABELS = {"wind": "Wind (onshore)", "solar": "Solar", "hydro": "Hydro", "thermal
 
 # The statistics a point in time can show, in the order they are offered.
 STATISTICS = ("max", "p90", "mean", "median", "p10", "min")
-STATISTIC_LABELS = {"max": "Highest", "p90": "90th percentile", "mean": "Mean", "median": "Median",
-                    "p10": "10th percentile", "min": "Lowest"}
+STATISTIC_LABELS = {
+    "max": "Highest",
+    "p90": "90th percentile",
+    "mean": "Mean",
+    "median": "Median",
+    "p10": "10th percentile",
+    "min": "Lowest",
+}
 
 DATE_BY = {"auction": "auction_date", "production": "production_period_start"}
 
@@ -272,8 +278,9 @@ class Distribution:
     unit: str
 
 
-def distribution(selected: list[Segment], bins: int, spacing: str = "linear",
-                 weight: str = "mwh") -> Distribution | None:
+def distribution(
+    selected: list[Segment], bins: int, spacing: str = "linear", weight: str = "mwh"
+) -> Distribution | None:
     """The price distribution of each technology on the same bins. A segment
     adds 1 to its bin, or its MWh sold when `weight` is "mwh". Segments that
     sold nothing have no price and are left out (see `summary`)."""
@@ -310,14 +317,16 @@ def summary(selected: list[Segment], weighted: bool) -> list[dict[str, Any]]:
             continue
         priced = [s for s in mine if s.price is not None]
         stats = statistics(priced, weighted)
-        rows.append({
-            "technology": technology,
-            "auctions": len({s.auction_id for s in mine}),
-            "segments": len(priced),
-            "unsold_segments": len(mine) - len(priced),
-            "mwh_sold": sum(s.sold_mwh for s in mine),
-            **stats,
-        })
+        rows.append(
+            {
+                "technology": technology,
+                "auctions": len({s.auction_id for s in mine}),
+                "segments": len(priced),
+                "unsold_segments": len(mine) - len(priced),
+                "mwh_sold": sum(s.sold_mwh for s in mine),
+                **stats,
+            }
+        )
     return rows
 
 
@@ -330,15 +339,17 @@ def by_region(selected: list[Segment], weighted: bool) -> list[dict[str, Any]]:
     rows = []
     for (region, technology), mine in sorted(groups.items(), key=lambda g: (ORDER.index(g[0][1]), g[0][0])):
         priced = [s for s in mine if s.price is not None]
-        rows.append({
-            "region": region,
-            "technology": technology,
-            "auctions": len({s.auction_id for s in mine}),
-            "segments": len(priced),
-            "unsold_segments": len(mine) - len(priced),
-            "mwh_sold": sum(s.sold_mwh for s in mine),
-            **statistics(priced, weighted),
-        })
+        rows.append(
+            {
+                "region": region,
+                "technology": technology,
+                "auctions": len({s.auction_id for s in mine}),
+                "segments": len(priced),
+                "unsold_segments": len(mine) - len(priced),
+                "mwh_sold": sum(s.sold_mwh for s in mine),
+                **statistics(priced, weighted),
+            }
+        )
     return rows
 
 
@@ -354,28 +365,32 @@ def over_time(selected: list[Segment], date_by: str, weighted: bool) -> list[dic
         if not priced:
             continue
         first = mine[0]
-        points.append({
-            "auction_id": auction_id,
-            "auction_number": first.auction_number,
-            "auction_date": first.auction_date,
-            "production_month": first.production_month,
-            "at": first.at(date_by),
-            "technology": technology,
-            "regions": len(priced),
-            "unsold_regions": len(mine) - len(priced),
-            "mwh_sold": sum(s.sold_mwh for s in mine),
-            "share_sold": first.share_sold,
-            "bidders": first.bidders,
-            **statistics(priced, weighted),
-        })
+        points.append(
+            {
+                "auction_id": auction_id,
+                "auction_number": first.auction_number,
+                "auction_date": first.auction_date,
+                "production_month": first.production_month,
+                "at": first.at(date_by),
+                "technology": technology,
+                "regions": len(priced),
+                "unsold_regions": len(mine) - len(priced),
+                "mwh_sold": sum(s.sold_mwh for s in mine),
+                "share_sold": first.share_sold,
+                "bidders": first.bidders,
+                **statistics(priced, weighted),
+            }
+        )
     points.sort(key=lambda p: (p["at"], p["auction_id"], ORDER.index(p["technology"])))
     return points
 
 
 # Finding the database: the database stage's newest published output, in the store.
 
-def published_database(store: str | Path, pipeline_file: str | Path, stage_name: str = "database"
-                       ) -> tuple[str, str, Any]:
+
+def published_database(
+    store: str | Path, pipeline_file: str | Path, stage_name: str = "database"
+) -> tuple[str, str, Any]:
     """The key and sha256 of the newest go-auctions.duckdb the pipeline's
     database stage published in the store, and the store to read it from: a
     directory, or gs://BUCKET read over its API."""

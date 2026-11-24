@@ -106,10 +106,17 @@ class _Links(HTMLParser):
         if extension not in EXTENSIONS:
             return
         row = self.row or {}
-        self.link = {"url": url, "name": name, "extension": extension, "section": self.section,
-                     "title": row.get("title", "") or clean(attr.get("title", "")),
-                     "published": row.get("published", ""), "label": "",
-                     "link_title": clean(attr.get("title", "")), "in_table": "1" if self.row is not None else ""}
+        self.link = {
+            "url": url,
+            "name": name,
+            "extension": extension,
+            "section": self.section,
+            "title": row.get("title", "") or clean(attr.get("title", "")),
+            "published": row.get("published", ""),
+            "label": "",
+            "link_title": clean(attr.get("title", "")),
+            "in_table": "1" if self.row is not None else "",
+        }
 
 
 def files_on(page: str, base: str) -> list[dict[str, str]]:
@@ -147,5 +154,9 @@ class Page(Parser):
         if not files:
             raise ValueError(f"{url} links to no files ({', '.join(EXTENSIONS)}); has the page layout changed?")
         listing = (json.dumps(files, indent=2, ensure_ascii=False) + "\n").encode()
-        return ItemResult([Output("page.html", answer.body, "text/html", None),
-                           Output("files.json", listing, "application/json", len(files))])
+        return ItemResult(
+            [
+                Output("page.html", answer.body, "text/html", None),
+                Output("files.json", listing, "application/json", len(files)),
+            ]
+        )

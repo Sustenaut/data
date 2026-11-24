@@ -27,13 +27,25 @@ class Artifact:
     item_key: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {"key": self.key, "sha256": self.sha256, "size": self.size, "name": self.name,
-                "media_type": self.media_type, "item_key": self.item_key}
+        return {
+            "key": self.key,
+            "sha256": self.sha256,
+            "size": self.size,
+            "name": self.name,
+            "media_type": self.media_type,
+            "item_key": self.item_key,
+        }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Artifact:
-        return cls(data["key"], data["sha256"], data["size"], data["name"],
-                   data.get("media_type", "application/octet-stream"), data.get("item_key", ""))
+        return cls(
+            data["key"],
+            data["sha256"],
+            data["size"],
+            data["name"],
+            data.get("media_type", "application/octet-stream"),
+            data.get("item_key", ""),
+        )
 
 
 @dataclass(frozen=True)
@@ -80,9 +92,17 @@ class StageContext:
     stage that publishes the notes (a merge into the app's database) copies
     them, so they say the same everywhere."""
 
-    def __init__(self, storage: LocalStorage, options: dict[str, Any], stage: str, *, run_id: str = "",
-                 pipeline: str = "", parser: type[Parser] | None = None,
-                 earlier_notes: tuple[Artifact, ...] = ()):
+    def __init__(
+        self,
+        storage: LocalStorage,
+        options: dict[str, Any],
+        stage: str,
+        *,
+        run_id: str = "",
+        pipeline: str = "",
+        parser: type[Parser] | None = None,
+        earlier_notes: tuple[Artifact, ...] = (),
+    ):
         self._storage = storage
         self.options = options
         self.stage = stage
@@ -100,12 +120,20 @@ class StageContext:
         from ingest.core import notes as notes_mod  # noqa: PLC0415 - notes imports this module
 
         source = item.inputs[0] if item.inputs else None
-        return [notes_mod.record(
-            n, run_id=run_id or self.run_id, pipeline=self.pipeline, stage=self.stage,
-            parser_name=self.parser.name if self.parser else "",
-            parser_version=self.parser.version if self.parser else "", item_key=item.key,
-            source_key=source.key if source else "", source_sha256=source.sha256 if source else "")
-            for n in notes]
+        return [
+            notes_mod.record(
+                n,
+                run_id=run_id or self.run_id,
+                pipeline=self.pipeline,
+                stage=self.stage,
+                parser_name=self.parser.name if self.parser else "",
+                parser_version=self.parser.version if self.parser else "",
+                item_key=item.key,
+                source_key=source.key if source else "",
+                source_sha256=source.sha256 if source else "",
+            )
+            for n in notes
+        ]
 
 
 class Parser:

@@ -38,9 +38,22 @@ DATA = (".xlsx", ".xls", ".csv")
 RESULTS = re.compile(
     r"^(?P<published>\d{8})_(?P<month>[a-z]+)_(?P<year>\d{4})"
     r"(?:_(?P<number>\d+)(?:_(?P<round>\d+))?)?_global_?results.*\.(?:xlsx|csv)$",
-    re.IGNORECASE)
-MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august", "september",
-          "october", "november", "december")
+    re.IGNORECASE,
+)
+MONTHS = (
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+)
 
 
 def is_results(name: str) -> bool:
@@ -90,8 +103,23 @@ class SelectGlobalResults(Parser):
             return ItemResult([Output(name, ctx.read(artifact), artifact.media_type)])
         if decision.startswith("duplicate:"):
             kept = decision.partition(":")[2]
-            return ItemResult(notes=[Note("file_duplicate", f"{item.key} is the same file as {kept}; it is used once",
-                                          subject=item.key, severity="info")])
-        return ItemResult(notes=[Note("file_not_results",
-                                      f"{item.key} is not a monthly GO Global Results file; it is left out",
-                                      subject=item.key, severity="info")])
+            return ItemResult(
+                notes=[
+                    Note(
+                        "file_duplicate",
+                        f"{item.key} is the same file as {kept}; it is used once",
+                        subject=item.key,
+                        severity="info",
+                    )
+                ]
+            )
+        return ItemResult(
+            notes=[
+                Note(
+                    "file_not_results",
+                    f"{item.key} is not a monthly GO Global Results file; it is left out",
+                    subject=item.key,
+                    severity="info",
+                )
+            ]
+        )

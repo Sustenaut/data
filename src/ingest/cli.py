@@ -41,8 +41,10 @@ APP_PIPELINE = "pipelines/eex-french-go-auctions.yaml"
 # sent to Streamlit. It listens where Streamlit does by default, which Cloud
 # Run reaches; no address is set here.
 APP_SETTINGS = {
-    "server.headless": "true", "browser.gatherUsageStats": "false",
-    "server.enableXsrfProtection": "true", "client.toolbarMode": "viewer",
+    "server.headless": "true",
+    "browser.gatherUsageStats": "false",
+    "server.enableXsrfProtection": "true",
+    "client.toolbarMode": "viewer",
 }  # The theme is .streamlit/config.toml's: a flag here would override its light and dark.
 
 
@@ -52,18 +54,28 @@ def parser() -> argparse.ArgumentParser:
     commands = main.add_subparsers(dest="command", required=True)
     run = commands.add_parser("run", help="run a pipeline, or part of it")
     run.add_argument("pipeline", help="the pipeline's YAML file")
-    run.add_argument("--from", dest="start", metavar="STAGE",
-                     help=f"the first stage to run, or {AUTO}: where a parser or input changed")
+    run.add_argument(
+        "--from",
+        dest="start",
+        metavar="STAGE",
+        help=f"the first stage to run, or {AUTO}: where a parser or input changed",
+    )
     run.add_argument("--to", dest="end", metavar="STAGE", help="the last stage to run")
     run.add_argument("--force", action="store_true", help="build every item again, stored or not")
-    run.add_argument("--store", default=setting("STORE", "store"),
-                     help="the directory stage outputs are kept in (DATA_STORE)")
-    run.add_argument("--store-uri", default=setting("STORE_URI"),
-                     help="what the store is, as the run log names it, such as gs://BUCKET when the "
-                          "store is that bucket, mounted (DATA_STORE_URI)")
-    run.add_argument("--run-log", default=setting("RUN_LOG", "runs.jsonl"),
-                     help="where run log rows go: a JSONL file, or bigquery:PROJECT.DATASET.TABLE "
-                          "(DATA_RUN_LOG)")
+    run.add_argument(
+        "--store", default=setting("STORE", "store"), help="the directory stage outputs are kept in (DATA_STORE)"
+    )
+    run.add_argument(
+        "--store-uri",
+        default=setting("STORE_URI"),
+        help="what the store is, as the run log names it, such as gs://BUCKET when the "
+        "store is that bucket, mounted (DATA_STORE_URI)",
+    )
+    run.add_argument(
+        "--run-log",
+        default=setting("RUN_LOG", "runs.jsonl"),
+        help="where run log rows go: a JSONL file, or bigquery:PROJECT.DATASET.TABLE (DATA_RUN_LOG)",
+    )
     run.add_argument("--run-id", help="the run's id, when what started it made one")
     run.add_argument("--trigger", choices=TRIGGERS, default="manual", help="what started the run")
     output = commands.add_parser("output", help="where a stage's newest published output is, or a copy of it")
@@ -71,19 +83,29 @@ def parser() -> argparse.ArgumentParser:
     output.add_argument("stage", help="the stage")
     output.add_argument("--name", help="the output's name, when the stage has several")
     output.add_argument("--copy-to", metavar="FILE", help="copy the output to FILE")
-    output.add_argument("--store", default=setting("STORE", "store"),
-                        help="the directory stage outputs are kept in, or gs://BUCKET to read the bucket "
-                             "over its API (DATA_STORE)")
+    output.add_argument(
+        "--store",
+        default=setting("STORE", "store"),
+        help="the directory stage outputs are kept in, or gs://BUCKET to read the bucket over its API (DATA_STORE)",
+    )
     app = commands.add_parser("app", help="serve the go-auctions app")
-    app.add_argument("--store", default=setting("STORE", "store"),
-                     help="the store whose newest merged database it shows: a directory, or gs://BUCKET "
-                          "(DATA_STORE)")
-    app.add_argument("--database", default=setting("DATABASE"),
-                     help="show this DuckDB file instead (DATA_DATABASE)")
-    app.add_argument("--pipeline", default=setting("PIPELINE", APP_PIPELINE),
-                     help="the pipeline whose database stage made the database (DATA_PIPELINE)")
-    app.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8501")),
-                     help="the port to serve on (PORT, as Cloud Run sets it)")
+    app.add_argument(
+        "--store",
+        default=setting("STORE", "store"),
+        help="the store whose newest merged database it shows: a directory, or gs://BUCKET (DATA_STORE)",
+    )
+    app.add_argument("--database", default=setting("DATABASE"), help="show this DuckDB file instead (DATA_DATABASE)")
+    app.add_argument(
+        "--pipeline",
+        default=setting("PIPELINE", APP_PIPELINE),
+        help="the pipeline whose database stage made the database (DATA_PIPELINE)",
+    )
+    app.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("PORT", "8501")),
+        help="the port to serve on (PORT, as Cloud Run sets it)",
+    )
     fixes = commands.add_parser("corrections", help="work with a corrections file")
     fix_commands = fixes.add_subparsers(dest="action", required=True)
     check = fix_commands.add_parser("check", help="check each rule against the excerpt it keeps")
@@ -129,8 +151,10 @@ def show_output(args: argparse.Namespace) -> int:
         raise RunError(f"stage {stage.name}'s run {latest['run_id']} published no output named {args.name}")
     if args.copy_to:
         if len(outputs) > 1:
-            raise RunError(f"stage {stage.name} published {len(outputs)} outputs; name one with --name: "
-                           + ", ".join(o["name"] for o in outputs[:10]))
+            raise RunError(
+                f"stage {stage.name} published {len(outputs)} outputs; name one with --name: "
+                + ", ".join(o["name"] for o in outputs[:10])
+            )
         target = copy_target(args.copy_to)
         storage.copy_to(outputs[0]["key"], target)
         print(f"{args.copy_to}: {outputs[0]['name']} from run {latest['run_id']}, sha256 {outputs[0]['sha256']}")
@@ -168,8 +192,7 @@ def main(argv: list[str] | None = None) -> int:
         pipeline = pipeline_mod.load(args.pipeline)
         storage = LocalStorage(args.store, args.store_uri)
         runner = Runner(pipeline, storage, open_run_log(args.run_log), sys.stdout, sys.stderr)
-        return runner.run(start=args.start, end=args.end, force=args.force, run_id=args.run_id,
-                          trigger=args.trigger)
+        return runner.run(start=args.start, end=args.end, force=args.force, run_id=args.run_id, trigger=args.trigger)
     except (pipeline_mod.PipelineError, RunError) as error:
         print(f"data: {error}", file=sys.stderr)
         return 2

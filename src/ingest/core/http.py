@@ -38,8 +38,15 @@ def get(url: str, timeout: float = 60, headers: dict[str, str] | None = None) ->
     return send("GET", url, timeout=timeout, headers=headers)
 
 
-def send(method: str, url: str, body: bytes | None = None, *, timeout: float = 60,
-         headers: dict[str, str] | None = None, raise_for_status: bool = True) -> Response:
+def send(
+    method: str,
+    url: str,
+    body: bytes | None = None,
+    *,
+    timeout: float = 60,
+    headers: dict[str, str] | None = None,
+    raise_for_status: bool = True,
+) -> Response:
     """One request, tried up to TRIES times when the transfer is cut off,
     the connection drops or times out, or the server answers 429 or 5xx.
     Waits 1 s, then 2 s, between tries (DATA_HTTP_RETRY_DELAY sets the
@@ -50,8 +57,9 @@ def send(method: str, url: str, body: bytes | None = None, *, timeout: float = 6
     for attempt in range(1, TRIES + 1):
         last = attempt == TRIES
         after = f" after {TRIES} tries" if attempt > 1 else ""
-        request = urllib.request.Request(url, data=body, method=method,
-                                         headers={"User-Agent": USER_AGENT, **(headers or {})})
+        request = urllib.request.Request(
+            url, data=body, method=method, headers={"User-Agent": USER_AGENT, **(headers or {})}
+        )
         try:
             with urllib.request.urlopen(request, timeout=timeout) as answer:  # noqa: S310 (scheme checked above)
                 return Response(answer.geturl(), answer.status, dict(answer.headers.items()), answer.read())
@@ -62,8 +70,9 @@ def send(method: str, url: str, body: bytes | None = None, *, timeout: float = 6
             if not raise_for_status:
                 return Response(url, error.code, dict(error.headers.items()), error.read())
             detail = error.read().decode("utf-8", "replace").strip()[:500]
-            raise HttpError(f"{method} {url} answered {error.code} {error.reason}{after}"
-                            + (f": {detail}" if detail else "")) from error
+            raise HttpError(
+                f"{method} {url} answered {error.code} {error.reason}{after}" + (f": {detail}" if detail else "")
+            ) from error
         except (urllib.error.URLError, http.client.HTTPException, TimeoutError, OSError) as error:
             if not last:
                 time.sleep(delay * attempt)

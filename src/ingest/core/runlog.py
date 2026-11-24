@@ -65,8 +65,10 @@ class BigQueryRunLog:
             raise RunLogError(f"{target!r} is not PROJECT.DATASET.TABLE")
         self.table = target
         base = os.environ.get("BIGQUERY_URL", "https://bigquery.googleapis.com").rstrip("/")
-        self.url = (f"{base}/bigquery/v2/projects/{match['project']}/datasets/{match['dataset']}"
-                    f"/tables/{match['table']}/insertAll")
+        self.url = (
+            f"{base}/bigquery/v2/projects/{match['project']}/datasets/{match['dataset']}"
+            f"/tables/{match['table']}/insertAll"
+        )
         self.columns = {f["name"]: f for f in schema()}
         self._credentials = None
 
@@ -85,8 +87,10 @@ class BigQueryRunLog:
         unknown = sorted(set(row) - set(self.columns))
         if unknown:
             raise RunLogError(f"the run log row has fields {self.table}'s schema lacks: {', '.join(unknown)}")
-        return {k: json.dumps(v, sort_keys=True, default=str) if self.columns[k]["type"] == "JSON" and v is not None
-                else v for k, v in row.items()}
+        return {
+            k: json.dumps(v, sort_keys=True, default=str) if self.columns[k]["type"] == "JSON" and v is not None else v
+            for k, v in row.items()
+        }
 
     def write(self, row: dict[str, Any]) -> None:
         from google.auth import exceptions  # noqa: PLC0415
@@ -103,14 +107,15 @@ class BigQueryRunLog:
             raise RunLogError(f"cannot write the run log to {self.table}: {error}") from error
         errors = json.loads(answer.body or b"{}").get("insertErrors")
         if errors:
-            reasons = "; ".join(f"{e.get('location') or 'row'}: {e.get('message')}"
-                                for entry in errors for e in entry.get("errors", []))
+            reasons = "; ".join(
+                f"{e.get('location') or 'row'}: {e.get('message')}" for entry in errors for e in entry.get("errors", [])
+            )
             raise RunLogError(f"{self.table} refused the run log row: {reasons}")
 
 
 def open_run_log(target: str) -> RunLog:
     if target.startswith(BIGQUERY):
-        return BigQueryRunLog(target[len(BIGQUERY):])
+        return BigQueryRunLog(target[len(BIGQUERY) :])
     return JsonlRunLog(target)
 
 
@@ -142,7 +147,8 @@ def trigger_context() -> dict[str, str]:
     if os.environ.get("GITHUB_RUN_ID") and os.environ.get("GITHUB_REPOSITORY"):
         server = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
         context["github_run_url"] = (
-            f"{server}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}")
+            f"{server}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+        )
     context["machine"] = platform.node()
     return context
 
